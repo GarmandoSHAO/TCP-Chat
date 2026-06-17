@@ -2,18 +2,37 @@
 ☆ 网络聊天室 — 服务端 ☆
 基于 TCP Socket 的多客户端聊天室服务器
 支持多人同时在线、群聊、私聊、在线用户列表
+支持局域网自动发现
 """
 
 import socket
 import threading
+import time
 
 # ========== 配置 ==========
-HOST = "0.0.0.0"  # 监听所有网卡
-PORT = 8888        # 端口号
+HOST = "0.0.0.0"                    # 监听所有网卡
+PORT = 8888                         # TCP 端口号
+DISCOVERY_PORT = 9999              # UDP 广播发现端口
+BROADCAST_ADDRESS = "255.255.255.255"  # 广播地址
+
+# ========== 获取本机 IP ==========
+def get_local_ip():
+    """获取本机局域网 IP 地址"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
+
+LOCAL_IP = get_local_ip()
 
 # ========== 全局状态 ==========
-clients = {}       # {conn: nickname}
+clients = {}                        # {conn: nickname}
 lock = threading.Lock()
+room_name = "聊天室"               # 房间名称
 
 
 def broadcast(message: str, sender_conn=None):
@@ -134,6 +153,24 @@ def handle_client(conn: socket.socket, addr):
         print(f"[断开] {addr} — {nickname or '未知'}")
 
 
+def broadcast_discovery():
+    """启动 UDP 广播线程，让客户端发现此服务器"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    
+    message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}".encode("utf-8")
+    
+    while True:
+        try:
+            # 每 2 秒发送一次广播
+            sock.sendto(message, (BROADCAST_ADDRESS, DISCOVERY_PORT))
+            time.sleep(2)
+        except Exception as e:
+            print(f"[广播错误] {e}")
+            time.sleep(2)
+
+
 def start_server():
     """启动服务端"""
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -141,8 +178,16 @@ def start_server():
     server.bind((HOST, PORT))
     server.listen(10)
     print(f"🚀 聊天室服务端已启动！")
-    print(f"   监听地址: {HOST}:{PORT}")
+    print(f"   房间名称: {room_name}")
+    print(f"   本机 IP: {LOCAL_IP}")
+    print(f"   监听端口: {PORT}")
+    print(f"   广播端口: {DISCOVERY_PORT}")
     print(f"   等待客户端连接...\n")
+
+    # 启动广播发现线程
+    discovery_thread = threading.Thread(target=broadcast_discovery, daemon=True)
+    discovery_thread.start()
+    print(f"📡 房间广播已启动，客户端可以搜索到此房间\n")
 
     try:
         while True:
