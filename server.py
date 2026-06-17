@@ -177,6 +177,7 @@ def start_server():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
     server.listen(10)
+    server.settimeout(1)  # 1秒超时，让 accept() 可被 Ctrl+C 中断
     print(f"🚀 聊天室服务端已启动！")
     print(f"   房间名称: {room_name}")
     print(f"   本机 IP: {LOCAL_IP}")
@@ -191,7 +192,10 @@ def start_server():
 
     try:
         while True:
-            conn, addr = server.accept()
+            try:
+                conn, addr = server.accept()
+            except socket.timeout:
+                continue  # 超时重试，让 KeyboardInterrupt 有机会被捕获
             print(f"[新连接] {addr}")
             t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             t.start()

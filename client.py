@@ -42,20 +42,34 @@ def receive_messages(sock: socket.socket):
 def discover_rooms(timeout=5):
     """通过 UDP 广播发现局域网内的聊天室"""
     print("\n🔍 正在扫描局域网内的聊天室...\n")
-    
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", DISCOVERY_PORT))
+    try:
+        sock.bind(("0.0.0.0", DISCOVERY_PORT))
+    except OSError:
+        return {}
+
     sock.settimeout(timeout)
-    
+
     rooms = {}  # {ip: (room_name, port)}
-    
+    start_time = time.time()
+
     try:
         while True:
+            # 检查总耗时是否已超时（不能只靠 settimeout，因为广播持续到达会不断重置超时）
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                break
+
+            # 动态缩短 timeout，保证总耗时不超过设定值
+            remaining = timeout - elapsed
+            sock.settimeout(remaining)
+
             try:
                 data, addr = sock.recvfrom(1024)
                 message = data.decode("utf-8")
-                
+
                 # 解析房间信息格式: CHAT_ROOM|房间名|IP|端口
                 if message.startswith("CHAT_ROOM|"):
                     parts = message.split("|")
@@ -64,12 +78,11 @@ def discover_rooms(timeout=5):
                         rooms[ip] = (room_name, int(port))
             except socket.timeout:
                 break
-            except Exception as e:
-                print(f"[发现错误] {e}")
+            except Exception:
                 break
     finally:
         sock.close()
-    
+
     return rooms
 
 
