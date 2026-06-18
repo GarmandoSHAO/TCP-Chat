@@ -471,7 +471,7 @@ class ChatClientUI:
         win.attributes("-topmost", True)
 
         frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
-        frame.pack(fill="both", expand=True, padx=14, pady=(12, 10))
+        frame.pack(expand=True)
 
         def copy(text):
             win.clipboard_clear()
