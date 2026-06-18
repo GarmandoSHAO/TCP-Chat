@@ -459,15 +459,55 @@ class ChatClientUI:
             self._ctx_menu.grab_release()
 
     def _show_ip(self):
-        """弹出本机 IP 信息"""
+        """弹出本机 IP 窗口（可选中复制）"""
         from tcp_chat.config import get_local_ip
         ip = get_local_ip()
         pub = getattr(self, '_public_addr', None)
-        msg = f"📍 局域网 IP: {ip}\n（发给同网络的朋友）"
+
+        win = ctk.CTkToplevel(self.root)
+        win.title("网络信息")
+        win.geometry("+%d+%d" % (self.root.winfo_x() + 60, self.root.winfo_y() + 80))
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+
+        frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(frame, text="📍 局域网 IP",
+                     font=("Segoe UI", 11, "bold"),
+                     text_color="#075e54",
+                     bg_color="white").pack(anchor="w")
+        entry_local = tk.Entry(frame, font=("Segoe UI", 12),
+                               bd=0, readonlybackground="white",
+                               fg="#333333", width=30)
+        entry_local.insert(0, ip)
+        entry_local.configure(state="readonly")
+        entry_local.pack(fill="x", pady=(2, 8))
+        entry_local.bind("<FocusIn>", lambda e: entry_local.selection_range(0, tk.END))
+
         if pub:
-            msg += f"\n\n🌐 外网地址: {pub}\n（发给外网的朋友）"
-        import tkinter.messagebox as mb
-        mb.showinfo("网络信息", msg, parent=self.root)
+            ctk.CTkLabel(frame, text="🌐 外网地址",
+                         font=("Segoe UI", 11, "bold"),
+                         text_color="#075e54",
+                         bg_color="white").pack(anchor="w", pady=(8, 0))
+            entry_wan = tk.Entry(frame, font=("Segoe UI", 12),
+                                 bd=0, readonlybackground="white",
+                                 fg="#333333", width=30)
+            entry_wan.insert(0, pub)
+            entry_wan.configure(state="readonly")
+            entry_wan.pack(fill="x", pady=(2, 8))
+            entry_wan.bind("<FocusIn>", lambda e: entry_wan.selection_range(0, tk.END))
+
+        ctk.CTkLabel(frame, text="点击自动选中，Ctrl+C 复制",
+                     font=("Segoe UI", 9),
+                     text_color="#999999",
+                     bg_color="white").pack(pady=(4, 0))
+
+        ctk.CTkButton(frame, text="关闭",
+                       font=("Segoe UI", 11),
+                       width=80, height=28, corner_radius=6,
+                       fg_color="#075e54",
+                       command=win.destroy).pack(pady=(10, 0))
 
     def _on_return(self, event):
         """回车：菜单打开时选命令，否则发送消息"""
