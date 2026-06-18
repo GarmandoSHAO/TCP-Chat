@@ -473,9 +473,15 @@ class ChatClientUI:
         frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
         frame.pack(expand=True)
 
+        hint = ctk.CTkLabel(frame, text="", font=("Segoe UI", 10),
+                            text_color="#2e7d32")
+        hint.pack(pady=(0, 4))
+
         def copy(text):
             win.clipboard_clear()
             win.clipboard_append(text)
+            hint.configure(text="✅ 复制成功")
+            win.after(1500, lambda: hint.configure(text=""))
 
         def make_row(label, text):
             row = ctk.CTkFrame(frame, fg_color="transparent")
