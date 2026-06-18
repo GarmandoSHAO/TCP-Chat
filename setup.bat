@@ -14,23 +14,25 @@ echo ===============================================
 echo.
 
 :: Try Gitee first (faster in China)
+del "%ZIP_FILE%" 2>nul
 echo [1] Gitee (China) ...
 set ZIP_URL=https://gitee.com/garmando/tcp-chat/repository/archive/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK' } catch { exit 1 }
-if exist "%ZIP_FILE%" for %%F in ("%ZIP_FILE%") do if %%~zF GEQ 500000 goto :EXTRACT
+    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK'; exit 0 } catch { exit 1 }
+if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
 
 :: Fallback: GitHub
+del "%ZIP_FILE%" 2>nul
 echo.
 echo [2] GitHub (fallback) ...
 set ZIP_URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK' } catch { exit 1 }
-if exist "%ZIP_FILE%" for %%F in ("%ZIP_FILE%") do if %%~zF GEQ 500000 goto :EXTRACT
+    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK'; exit 0 } catch { exit 1 }
+if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
 
 :: All failed
 echo.
