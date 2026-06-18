@@ -58,11 +58,10 @@ def build_create_room_view(container, on_create, on_back):
 
     entries = {}
     fields = [
-        ("局域网IP", local_ip, 22),
-        ("外网IP", "正在建造隧道...", 22, True),
-        ("端口", str(get("default_port", 8888)), 10, False),
-        ("房间名称", get("default_room_name", "聊天室"), 20, False),
-        ("昵称", get("default_nickname", "用户"), 20, False),
+        ("局域网IP:端口", f"{local_ip}:{get('default_port', 8888)}", 24),
+        ("外网IP", "正在建造隧道...", 24, True),
+        ("房间名称", get("default_room_name", "聊天室"), 20),
+        ("昵称", get("default_nickname", "用户"), 20),
     ]
     for item in fields:
         label, default, width = item[0], item[1], item[2]

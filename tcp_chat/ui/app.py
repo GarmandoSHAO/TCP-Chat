@@ -109,8 +109,13 @@ class ChatClientUI:
         self.create_frame, self.create_entries = build_create_room_view(
             self.root, self._on_create_room, self._back_to_start)
         self._wan_entry = self.create_entries.get("外网IP")
-        # 一进入创建页面就开始连隧道（不等用户点创建）
-        port = int(self.create_entries["端口"].get() or get("default_port", 8888))
+        # 一进入创建页面就开始连隧道
+        addr = self.create_entries["局域网IP:端口"].get()
+        port = get("default_port", 8888)
+        if ":" in addr:
+            p = addr.rsplit(":", 1)[1]
+            if p.isdigit():
+                port = int(p)
         self._start_tunnel(port)
 
     def _back_to_start(self):
@@ -121,8 +126,7 @@ class ChatClientUI:
     def _on_join_room(self):
         self._clear_views()
         fields = [
-            ("服务器地址", get("default_host", "127.0.0.1"), 20),
-            ("端口", str(get("default_port", 8888)), 8),
+            ("地址:端口", f"{get('default_host', '127.0.0.1')}:{get('default_port', 8888)}", 24),
             ("昵称", get("default_nickname", "用户"), 20),
         ]
         (self.login_frame, self.login_entries,
@@ -182,11 +186,12 @@ class ChatClientUI:
 
     def _on_create_room(self):
         nick = self.create_entries["昵称"].get().strip() or get("default_nickname", "用户")
-        port_str = self.create_entries["端口"].get().strip()
-        try:
-            port = int(port_str)
-        except ValueError:
-            port = get("default_port", 8888)
+        addr = self.create_entries["局域网IP:端口"].get().strip()
+        port = get("default_port", 8888)
+        if ":" in addr:
+            parts = addr.rsplit(":", 1)
+            if parts[1].isdigit():
+                port = int(parts[1])
         self.nickname = nick
         self._is_host = True
 
@@ -250,19 +255,18 @@ class ChatClientUI:
     def _do_connect(self):
         if self.connected:
             return
-        host = self.login_entries["服务器地址"].get().strip()
-        port_str = self.login_entries["端口"].get().strip()
+        addr = self.login_entries["地址:端口"].get().strip()
         nick = self.login_entries["昵称"].get().strip() or "匿名"
-        # 如果地址包含冒号，从中解析端口（如 bore.pub:17405）
-        if ":" in host and not host.startswith("["):
-            parts = host.rsplit(":", 1)
+        host, port_str = addr, str(get("default_port", 8888))
+        if ":" in addr and not addr.startswith("["):
+            parts = addr.rsplit(":", 1)
             host = parts[0]
             if parts[1].isdigit():
                 port_str = parts[1]
         try:
             port = int(port_str)
         except ValueError:
-            self.login_status.configure(text="❌ 端口必须是数字")
+            self.login_status.configure(text="❌ 地址格式错误 (host:port)")
             return
         self.nickname = nick
         self.login_status.configure(text="⏳ 连接中...", text_color="#1976d2")
@@ -563,10 +567,8 @@ class ChatClientUI:
                         self.status_dot.configure(text_color=STATUS_RED)
                 elif msg_type == "SCAN_RESULT":
                     name, ip, port = data
-                    self.login_entries["服务器地址"].delete(0, "end")
-                    self.login_entries["服务器地址"].insert(0, ip)
-                    self.login_entries["端口"].delete(0, "end")
-                    self.login_entries["端口"].insert(0, str(port))
+                    self.login_entries["地址:端口"].delete(0, "end")
+                    self.login_entries["地址:端口"].insert(0, f"{ip}:{port}")
                     self.login_status.configure(
                         text=f"✅ 发现 \"{name}\" — 已填入地址", text_color="#2e7d32")
                     self.scan_btn.configure(state="normal")
