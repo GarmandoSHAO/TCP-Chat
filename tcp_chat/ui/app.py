@@ -253,6 +253,12 @@ class ChatClientUI:
         host = self.login_entries["服务器地址"].get().strip()
         port_str = self.login_entries["端口"].get().strip()
         nick = self.login_entries["昵称"].get().strip() or "匿名"
+        # 如果地址包含冒号，从中解析端口（如 bore.pub:17405）
+        if ":" in host and not host.startswith("["):
+            parts = host.rsplit(":", 1)
+            host = parts[0]
+            if parts[1].isdigit():
+                port_str = parts[1]
         try:
             port = int(port_str)
         except ValueError:
