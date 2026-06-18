@@ -1,4 +1,0 @@
-  File "<string>", line 48
-    conn.sendall(b'欢迎\n')
-                 ^^^^^^^
-SyntaxError: bytes can only contain ASCII literal characters

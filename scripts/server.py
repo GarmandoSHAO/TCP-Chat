@@ -33,6 +33,9 @@ LOCAL_IP = get_local_ip()
 clients = {}                        # {conn: nickname}
 lock = threading.Lock()
 room_name = "聊天室"               # 房间名称
+host_conn = None                    # 房主连接
+next_user_id = 1                   # 自增用户 ID
+user_ids = {}                       # {conn: user_id}
 
 
 def broadcast(message: str, sender_conn=None):
@@ -60,15 +63,23 @@ def send_to(target_nick: str, message: str):
 
 
 def list_users() -> str:
-    """返回在线用户列表字符串"""
+    """返回在线用户列表字符串（带隐藏 ID 供客户端追踪）"""
     with lock:
-        names = list(clients.values())
-    return "当前在线: " + ", ".join(names) if names else "当前没有其他在线用户"
+        items = []
+        for conn, nick in clients.items():
+            uid = user_ids.get(conn, 0)
+            if conn == host_conn:
+                items.append(f"👑{nick}|{uid}")
+            else:
+                items.append(f"{nick}|{uid}")
+    return "当前在线: " + ", ".join(items) if items else "当前没有其他在线用户"
 
 
 def handle_client(conn: socket.socket, addr):
     """处理单个客户端通信"""
+    global host_conn, next_user_id
     nickname = None
+    user_id = None
     try:
         # ---- 欢迎 & 登录 ----
         conn.sendall("🟢 欢迎来到聊天室！请输入你的昵称: ".encode("utf-8"))
@@ -77,8 +88,15 @@ def handle_client(conn: socket.socket, addr):
             nickname = f"用户{addr[1]}"
 
         with lock:
+            # 分配唯一 ID
+            user_id = next_user_id
+            next_user_id += 1
             clients[conn] = nickname
-        broadcast(f"📢 {nickname} 进入了聊天室", conn)
+            user_ids[conn] = user_id
+            # 第一个连接的用户设为房主
+            if host_conn is None:
+                host_conn = conn
+        broadcast(f"📢 {nickname}|{user_id} 进入了聊天室", conn)
         conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n{list_users()}\n".encode("utf-8"))
 
         # ---- 主循环 ----
@@ -144,8 +162,12 @@ def handle_client(conn: socket.socket, addr):
         with lock:
             if conn in clients:
                 del clients[conn]
-        if nickname:
-            broadcast(f"🔴 {nickname} 离开了聊天室\n")
+            if conn in user_ids:
+                del user_ids[conn]
+            if conn == host_conn:
+                host_conn = None  # 房主离开，重置
+        if nickname and user_id:
+            broadcast(f"🔴 {nickname}|{user_id} 离开了聊天室\n")
         try:
             conn.close()
         except:
