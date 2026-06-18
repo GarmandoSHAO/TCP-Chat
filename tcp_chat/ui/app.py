@@ -471,28 +471,26 @@ class ChatClientUI:
         win.attributes("-topmost", True)
 
         frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
-        frame.pack(fill="both", expand=True, padx=16, pady=(12, 12))
+        frame.pack(fill="both", expand=True, padx=14, pady=(12, 10))
 
         def copy(text):
             win.clipboard_clear()
             win.clipboard_append(text)
 
-        ctk.CTkLabel(frame, text="局域网 IP", font=("Segoe UI", 11),
-                     text_color="#075e54", bg_color="white").pack(anchor="w")
-        ctk.CTkButton(frame, text=ip, font=("Segoe UI", 13),
-                       width=0, height=30, corner_radius=5,
-                       fg_color="#eeeeee", text_color="#333333",
-                       hover_color="#dddddd",
-                       command=lambda: copy(ip)).pack(pady=(3, 8))
+        def make_row(label, text):
+            row = ctk.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", pady=4)
+            ctk.CTkLabel(row, text=label, font=("Segoe UI", 12),
+                         text_color="#333333").pack(side="left", padx=(0, 8))
+            ctk.CTkButton(row, text=text, font=("Segoe UI", 12),
+                           width=0, height=28, corner_radius=5,
+                           fg_color="#e0e0e0", text_color="#333333",
+                           hover_color="#d0d0d0",
+                           command=lambda t=text: copy(t)).pack(side="left")
 
+        make_row("局域网 IP", ip)
         if pub:
-            ctk.CTkLabel(frame, text="外网地址", font=("Segoe UI", 11),
-                         text_color="#075e54", bg_color="white").pack(anchor="w")
-            ctk.CTkButton(frame, text=pub, font=("Segoe UI", 13),
-                           width=0, height=30, corner_radius=5,
-                           fg_color="#eeeeee", text_color="#333333",
-                           hover_color="#dddddd",
-                           command=lambda: copy(pub)).pack(pady=(3, 8))
+            make_row("外网地址", pub)
 
         ctk.CTkButton(frame, text="关闭",
                        font=("Segoe UI", 11),
