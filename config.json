@@ -1,0 +1,16 @@
+{
+  "_comment": "TCP 聊天室配置文件（留空或删除则使用默认值）",
+  "discovery_port": 9999,
+  "default_port": 8888,
+  "default_nickname": "用户",
+  "default_room_name": "聊天室",
+  "appearance": "light",
+  "theme": "green",
+  "corner_radius": 16,
+  "window": {
+    "login_width": 420,
+    "login_height": 480,
+    "chat_width": 880,
+    "chat_height": 640
+  }
+}
