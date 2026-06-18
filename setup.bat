@@ -4,12 +4,9 @@ title TCP Chat Setup
 cd /d "%~dp0"
 
 set ZIP_FILE=TCP-Chat.zip
-set DOWNLOAD_OK=0
 
-if exist "TCP-Chat.exe" set DOWNLOAD_OK=1
-if exist "main.py" set DOWNLOAD_OK=1
-
-if %DOWNLOAD_OK% equ 1 goto :INSTALL
+if exist "TCP-Chat.exe" goto :INSTALL
+if exist "main.py" goto :INSTALL
 
 echo ===============================================
 echo   TCP Chat - Download ^& Install
@@ -17,36 +14,23 @@ echo ===============================================
 echo.
 
 :: Try Gitee first (faster in China)
-set ZIP_URL=https://gitee.com/garmando/tcp-chat/repository/archive/main.zip
 echo [1] Gitee (China) ...
+set ZIP_URL=https://gitee.com/garmando/tcp-chat/repository/archive/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
-    try { ^
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-        Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
-        Write-Host 'OK'; ^
-        exit 0; ^
-    } catch { ^
-        exit 1; ^
-    }
-if %errorlevel% equ 0 call :CHECK_ZIP
-if %DOWNLOAD_OK% equ 1 goto :EXTRACT
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
+    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK' } catch { exit 1 }
+if exist "%ZIP_FILE%" for %%F in ("%ZIP_FILE%") do if %%~zF GEQ 500000 goto :EXTRACT
 
 :: Fallback: GitHub
-set ZIP_URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
+echo.
 echo [2] GitHub (fallback) ...
+set ZIP_URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
-    try { ^
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-        Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
-        Write-Host 'OK'; ^
-        exit 0; ^
-    } catch { ^
-        exit 1; ^
-    }
-if %errorlevel% equ 0 call :CHECK_ZIP
-if %DOWNLOAD_OK% equ 1 goto :EXTRACT
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
+    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK' } catch { exit 1 }
+if exist "%ZIP_FILE%" for %%F in ("%ZIP_FILE%") do if %%~zF GEQ 500000 goto :EXTRACT
 
 :: All failed
 echo.
@@ -61,11 +45,6 @@ echo   3. Run setup again
 echo.
 pause
 exit /b
-
-:CHECK_ZIP
-if not exist "%ZIP_FILE%" exit /b 1
-for %%F in ("%ZIP_FILE%") do if %%~zF GEQ 500000 set DOWNLOAD_OK=1
-exit /b 0
 
 :EXTRACT
 echo.
