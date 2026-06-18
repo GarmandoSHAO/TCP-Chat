@@ -473,10 +473,6 @@ class ChatClientUI:
         frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
         frame.pack(expand=True)
 
-        hint = ctk.CTkLabel(frame, text="", font=("Segoe UI", 10),
-                            text_color="#2e7d32")
-        hint.pack(pady=(0, 4))
-
         def copy(text):
             win.clipboard_clear()
             win.clipboard_append(text)
@@ -498,11 +494,15 @@ class ChatClientUI:
         if pub:
             make_row("外网地址", pub)
 
+        hint = ctk.CTkLabel(frame, text="", font=("Segoe UI", 10),
+                            text_color="#2e7d32")
+        hint.pack(pady=(4, 2))
+
         ctk.CTkButton(frame, text="关闭",
                        font=("Segoe UI", 11),
                        width=70, height=28, corner_radius=5,
                        fg_color="#075e54",
-                       command=win.destroy).pack(pady=(8, 0))
+                       command=win.destroy).pack()
 
     def _on_return(self, event):
         """回车：菜单打开时选命令，否则发送消息"""
