@@ -470,37 +470,37 @@ class ChatClientUI:
         win.resizable(False, False)
         win.attributes("-topmost", True)
 
-        frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
-        frame.pack(fill="both", expand=True, padx=14, pady=14)
+        frame = ctk.CTkFrame(win, fg_color="white", corner_radius=8)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         def copy(text):
             win.clipboard_clear()
             win.clipboard_append(text)
 
         # 局域网 IP
-        ctk.CTkLabel(frame, text="局域网 IP", font=("Segoe UI", 10),
+        ctk.CTkLabel(frame, text="局域网 IP", font=("Segoe UI", 9),
                      text_color="#075e54", bg_color="white").pack(anchor="w")
         ctk.CTkButton(frame, text=ip, font=("Segoe UI", 12),
-                       width=220, height=30, corner_radius=6,
+                       width=0, height=28, corner_radius=5,
                        fg_color="#eeeeee", text_color="#333333",
                        hover_color="#dddddd",
-                       command=lambda: copy(ip)).pack(pady=(2, 8))
+                       command=lambda: copy(ip)).pack(pady=(2, 6))
 
         # 外网 IP
         if pub:
-            ctk.CTkLabel(frame, text="外网地址", font=("Segoe UI", 10),
+            ctk.CTkLabel(frame, text="外网地址", font=("Segoe UI", 9),
                          text_color="#075e54", bg_color="white").pack(anchor="w")
             ctk.CTkButton(frame, text=pub, font=("Segoe UI", 12),
-                           width=220, height=30, corner_radius=6,
+                           width=0, height=28, corner_radius=5,
                            fg_color="#eeeeee", text_color="#333333",
                            hover_color="#dddddd",
-                           command=lambda: copy(pub)).pack(pady=(2, 8))
+                           command=lambda: copy(pub)).pack(pady=(2, 6))
 
         ctk.CTkButton(frame, text="关闭",
-                       font=("Segoe UI", 11),
-                       width=80, height=28, corner_radius=6,
+                       font=("Segoe UI", 10),
+                       width=60, height=26, corner_radius=5,
                        fg_color="#075e54",
-                       command=win.destroy).pack(pady=(6, 0))
+                       command=win.destroy).pack(pady=(4, 0))
 
     def _on_return(self, event):
         """回车：菜单打开时选命令，否则发送消息"""
