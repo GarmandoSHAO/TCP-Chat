@@ -17,8 +17,24 @@ echo   TCP Chat - Download ^& Install
 echo ===============================================
 echo.
 
-:: Method 1: curl.exe
-echo [1/3] curl.exe (Windows built-in) ...
+:: Method 1: PowerShell Invoke-WebRequest (has native progress bar)
+echo [1/3] PowerShell (with progress bar) ...
+powershell -Command ^
+    $ProgressPreference = 'Continue'; ^
+    try { ^
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
+        Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
+        Write-Host 'OK'; ^
+        exit 0; ^
+    } catch { ^
+        Write-Host 'FAIL'; ^
+        exit 1; ^
+    }
+if %errorlevel% equ 0 call :CHECK_ZIP
+if %DOWNLOAD_OK% equ 1 goto :EXTRACT
+
+:: Method 2: curl.exe as fallback
+echo [2/3] curl.exe ...
 where curl.exe >nul 2>&1
 if %errorlevel% equ 0 (
     curl.exe -L -# -o "%ZIP_FILE%" "%ZIP_URL%" 2>&1
@@ -26,15 +42,9 @@ if %errorlevel% equ 0 (
     if %DOWNLOAD_OK% equ 1 goto :EXTRACT
 )
 
-:: Method 2: PowerShell
-echo [2/3] PowerShell ...
-powershell -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $c = New-Object System.Net.WebClient; $c.DownloadFile('%ZIP_URL%', '%ZIP_FILE%'); Write-Host 'OK' } catch { exit 1 }" 2>&1
-if %errorlevel% equ 0 call :CHECK_ZIP
-if %DOWNLOAD_OK% equ 1 goto :EXTRACT
-
-:: Method 3: BITS
+:: Method 3: BITS as last fallback
 echo [3/3] BITS ...
-powershell -Command "try { Start-BitsTransfer -Source '%ZIP_URL%' -Destination '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK' } catch { exit 1 }" 2>&1
+powershell -Command "try { Start-BitsTransfer -Source '%ZIP_URL%' -Destination '%ZIP_FILE%' -ErrorAction Stop } catch { exit 1 }" 2>&1
 if %errorlevel% equ 0 call :CHECK_ZIP
 if %DOWNLOAD_OK% equ 1 goto :EXTRACT
 
@@ -44,12 +54,9 @@ echo ===============================================
 echo   Download failed. Please try manually:
 echo ===============================================
 echo.
-echo   1. Download the ZIP:
-echo      %ZIP_URL%
-echo.
-echo   2. Save to this folder as: %ZIP_FILE%
-echo.
-echo   3. Run this setup again
+echo   1. Download: %ZIP_URL%
+echo   2. Save to this folder as %ZIP_FILE%
+echo   3. Run setup again
 echo.
 pause
 exit /b
