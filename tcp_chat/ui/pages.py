@@ -177,22 +177,22 @@ def build_chat_view(container, on_send, on_disconnect):
     top_bar.pack(fill="x", side="top")
     top_bar.pack_propagate(False)
 
-    disconnect_btn = ctk.CTkButton(top_bar, text="✕ 断开",
-                                    font=("Segoe UI", 10),
-                                    width=62, height=26, corner_radius=6,
-                                    fg_color=WHITE, text_color="#888888",
-                                    hover_color="#ffcdd2",
-                                    command=on_disconnect)
-    disconnect_btn.pack(side="left", padx=(4, 0))
-
     status_dot = ctk.CTkLabel(top_bar, text="●", font=("Segoe UI", 14),
                                text_color=STATUS_GREEN, bg_color=WHITE)
     status_dot.pack(side="left", padx=(10, 2))
 
     title_label = ctk.CTkLabel(top_bar, text="聊天室 — 连接中...",
                                 font=("Segoe UI", 12, "bold"),
-                                text_color=CHAT_TITLE, bg_color=WHITE)
-    title_label.pack(side="left", padx=4)
+                                text_color=CHAT_TITLE,
+                                fg_color="white",
+                                corner_radius=6,
+                                cursor="hand2")
+    title_label.pack(side="left", padx=6)
+    # 悬停变色（不改变尺寸的属性，避免偏移）
+    title_label.bind("<Enter>", lambda e: title_label.configure(
+        fg_color="#e8f5e9"))
+    title_label.bind("<Leave>", lambda e: title_label.configure(
+        fg_color="white"))
 
     # ---- 主体 ----
     main_area = ctk.CTkFrame(frame, fg_color="transparent")
@@ -348,7 +348,6 @@ def build_chat_view(container, on_send, on_disconnect):
     return {
         "frame": frame,
         "top_bar": top_bar,
-        "disconnect_btn": disconnect_btn,
         "status_dot": status_dot,
         "title_label": title_label,
         "msg_text": msg_text,

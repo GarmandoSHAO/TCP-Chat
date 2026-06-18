@@ -157,7 +157,6 @@ class ChatClientUI:
         self.msg_entry = chat["msg_entry"]
         self.status_dot = chat["status_dot"]
         self.title_label = chat["title_label"]
-        self.disconnect_btn = chat["disconnect_btn"]
         self.user_list_inner = chat["user_list_inner"]
         self.user_count_label = chat["user_count"]
         self.send_btn = chat["send_btn"]
@@ -730,9 +729,6 @@ class ChatClientUI:
             self.msg_entry.configure(state="disabled")
         if hasattr(self, 'send_btn'):
             self.send_btn.configure(state="disabled")
-        if hasattr(self, 'disconnect_btn'):
-            self.disconnect_btn.configure(state="disabled")
-
     def _on_close(self):
         self.stop_threads = True
         if self.sock:
