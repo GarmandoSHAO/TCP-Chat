@@ -13,13 +13,13 @@ if not exist "TCP-Chat.zip" (
 
 echo Extracting...
 tar -xf "TCP-Chat.zip" 2>&1
-del "TCP-Chat.zip" 2>nul
 for /d %%D in (*) do if exist "%%D\main.py" move "%%D" "TCP-Chat" >nul 2>&1
 if not exist "TCP-Chat" for /d %%D in (*) do if exist "%%D\tcp_chat" move "%%D" "TCP-Chat" >nul 2>&1
 
 if exist "TCP-Chat\main.py" (
+    del "TCP-Chat.zip" 2>nul
     echo OK - %cd%\TCP-Chat
 ) else (
-    echo Extraction failed
+    echo Extraction failed - ZIP saved at %cd%\TCP-Chat.zip
 )
 pause
