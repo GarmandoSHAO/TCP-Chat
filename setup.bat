@@ -3,8 +3,6 @@ chcp 65001 >nul 2>&1
 title TCP Chat Setup
 cd /d "%~dp0"
 
-set ZIP_FILE=TCP-Chat.zip
-
 if exist "TCP-Chat.exe" goto :INSTALL
 if exist "main.py" goto :INSTALL
 
@@ -13,51 +11,68 @@ echo   TCP Chat - Download ^& Install
 echo ===============================================
 echo.
 
-:: Try Gitee first (faster in China)
+set ZIP_FILE=TCP-Chat.zip
+
+:: Try GitHub first
+echo [1/2] GitHub ...
 del "%ZIP_FILE%" 2>nul
-echo [1] Gitee (China) ...
-set ZIP_URL=https://gitee.com/garmando/tcp-chat/repository/archive/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK'; exit 0 } catch { exit 1 }
+    try { ^
+        Invoke-WebRequest -Uri 'https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
+        exit 0 ^
+    } catch { ^
+        exit 1 ^
+    }
 if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
 
-:: Fallback: GitHub
+:: Fallback: Gitee
+echo [2/2] Gitee (fallback) ...
 del "%ZIP_FILE%" 2>nul
-echo.
-echo [2] GitHub (fallback) ...
-set ZIP_URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
 powershell -Command ^
     $ProgressPreference = 'Continue'; ^
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -ErrorAction Stop; Write-Host 'OK'; exit 0 } catch { exit 1 }
+    try { ^
+        Invoke-WebRequest -Uri 'https://gitee.com/garmando/tcp-chat/repository/archive/main.zip' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
+        exit 0 ^
+    } catch { ^
+        exit 1 ^
+    }
 if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
 
-:: All failed
 echo.
-echo ===============================================
-echo   Download failed.
-echo ===============================================
-echo.
-echo   Please download manually:
-echo   1. https://gitee.com/garmando/tcp-chat/repository/archive/main.zip
+echo Download failed. Please try:
+echo   1. Download: https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
 echo   2. Save to this folder as %ZIP_FILE%
 echo   3. Run setup again
-echo.
 pause
 exit /b
 
 :EXTRACT
 echo.
 echo Extracting...
+:: Delete old folder if exists
+if exist "TCP-Chat" rmdir /s /q "TCP-Chat" 2>nul
+:: Extract zip
 tar -xf "%ZIP_FILE%" 2>nul
-if exist "TCP-Chat-main" (
-    if exist "TCP-Chat" rmdir /s /q "TCP-Chat" >nul 2>&1
-    move "TCP-Chat-main" "TCP-Chat" >nul
-)
 del "%ZIP_FILE%" 2>nul
-cd TCP-Chat
+:: The zip extracts to TCP-Chat-main (GitHub) or tcp-chat (Gitee)
+:: Find the extracted folder and rename to TCP-Chat
+for /d %%D in (*) do (
+    if exist "%%D\main.py" (
+        move "%%D" "TCP-Chat" >nul 2>&1
+        goto :EXTRACT_DONE
+    )
+)
+for /d %%D in (*) do (
+    if exist "%%D\tcp_chat\__init__.py" (
+        move "%%D" "TCP-Chat" >nul 2>&1
+        goto :EXTRACT_DONE
+    )
+)
+:EXTRACT_DONE
+cd TCP-Chat 2>nul
 
 :INSTALL
 echo.
