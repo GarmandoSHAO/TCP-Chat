@@ -1,67 +1,53 @@
 @echo off
-chcp 65001 >nul
-title TCP 聊天室 — 安装程序
+chcp 65001 >nul 2>&1
+title TCP Chat - Setup
 cd /d "%~dp0"
 
 echo ===============================================
-echo   TCP 聊天室 — 安装程序
-echo   无需任何环境，Windows 10+ 可直接运行
+echo   TCP Chat - Setup
 echo ===============================================
 echo.
 
-:: 1. 下载项目压缩包
-set ZIP_FILE=TCP-Chat.zip
-set URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
-
-echo [1/3] 正在下载项目... (约 35MB)
-curl -L -# -o "%ZIP_FILE%" "%URL%" 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ 下载失败，请检查网络连接
+:: Check if running from a proper project folder
+if not exist "main.py" if not exist "TCP-Chat.exe" (
+    echo ERROR: Please run this from the TCP-Chat project folder.
+    echo.
+    echo   Option 1: Download the project ZIP from:
+    echo   https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
+    echo.
+    echo   Option 2: git clone https://github.com/GarmandoSHAO/TCP-Chat.git
+    echo.
     pause
     exit /b
 )
-echo ✅ 下载完成
 
-:: 2. 解压
-echo.
-echo [2/3] 正在解压...
-if not exist "%ZIP_FILE%" (
-    echo ❌ 压缩包不存在
-    pause
-    exit /b
-)
-tar -xf "%ZIP_FILE%" 2>nul
-if exist TCP-Chat-main (
-    if exist TCP-Chat (
-        rmdir /s /q TCP-Chat
-    )
-    move TCP-Chat-main TCP-Chat >nul
-)
-del "%ZIP_FILE%" 2>nul
-echo ✅ 解压完成
-
-:: 3. 创建桌面快捷方式
-echo.
-echo [3/3] 生成桌面快捷方式...
-set EXE_PATH=%cd%\TCP-Chat\TCP-Chat.exe
-if not exist "%EXE_PATH%" (
-    echo ⚠️ 未找到 TCP-Chat.exe，请手动运行 main.py（需安装 Python）
-    echo    python TCP-Chat\main.py
+echo [1/2] Creating desktop shortcut...
+set TARGET=%cd%
+if exist "TCP-Chat.exe" (
+    set EXE=%TARGET%\TCP-Chat.exe
 ) else (
-    powershell -Command ^
-        $ws = New-Object -ComObject WScript.Shell; ^
-        $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\TCP 聊天室.lnk'); ^
-        $s.TargetPath = '%EXE_PATH%'; ^
-        $s.WorkingDirectory = '%cd%\TCP-Chat'; ^
-        $s.Save() >nul
-    echo ✅ 桌面快捷方式已创建
+    set EXE=%TARGET%\main.py
 )
 
+powershell -Command ^
+    $ws = New-Object -ComObject WScript.Shell; ^
+    $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\TCP Chat.lnk'); ^
+    $s.TargetPath = '%EXE%'; ^
+    $s.WorkingDirectory = '%TARGET%'; ^
+    $s.Save() >nul
+
+if %errorlevel% equ 0 (
+    echo   Desktop shortcut created: TCP Chat
+) else (
+    echo   Warning: could not create shortcut
+)
 echo.
-echo ===============================================
-echo   ✅ 安装完成！
-echo ===============================================
+
+echo [2/2] Done!
 echo.
-echo   双击桌面「TCP 聊天室」即可运行
+echo   You can now launch from the desktop shortcut.
+echo.
+echo   To share this app with others, just zip this whole folder
+echo   and send it to them. They unzip and double-click TCP-Chat.exe
 echo.
 pause
