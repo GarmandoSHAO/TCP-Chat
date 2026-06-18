@@ -13,65 +13,32 @@ echo.
 
 set ZIP_FILE=TCP-Chat.zip
 
-:: Try GitHub first
-echo [1/2] GitHub ...
+:: 1. Gitee
 del "%ZIP_FILE%" 2>nul
-powershell -Command ^
-    $ProgressPreference = 'Continue'; ^
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { ^
-        Invoke-WebRequest -Uri 'https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
-        exit 0 ^
-    } catch { ^
-        exit 1 ^
-    }
-if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
+echo [1] Gitee ...
+powershell -Command "$p=[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://gitee.com/garmando/tcp-chat/repository/archive/main.zip','%ZIP_FILE%')"
+if exist "%ZIP_FILE%" goto :EXTRACT
 
-:: Fallback: Gitee
-echo [2/2] Gitee (fallback) ...
+:: 2. GitHub fallback
 del "%ZIP_FILE%" 2>nul
-powershell -Command ^
-    $ProgressPreference = 'Continue'; ^
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-    try { ^
-        Invoke-WebRequest -Uri 'https://gitee.com/garmando/tcp-chat/repository/archive/main.zip' -OutFile '%ZIP_FILE%' -ErrorAction Stop; ^
-        exit 0 ^
-    } catch { ^
-        exit 1 ^
-    }
-if %errorlevel% equ 0 if exist "%ZIP_FILE%" goto :EXTRACT
+echo [2] GitHub ...
+powershell -Command "$p=[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip','%ZIP_FILE%')"
+if exist "%ZIP_FILE%" goto :EXTRACT
 
 echo.
-echo Download failed. Please try:
-echo   1. Download: https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
-echo   2. Save to this folder as %ZIP_FILE%
-echo   3. Run setup again
+echo Download failed. Manual: %ZIP_URL%
 pause
 exit /b
 
 :EXTRACT
 echo.
 echo Extracting...
-:: Delete old folder if exists
 if exist "TCP-Chat" rmdir /s /q "TCP-Chat" 2>nul
-:: Extract zip
 tar -xf "%ZIP_FILE%" 2>nul
 del "%ZIP_FILE%" 2>nul
-:: The zip extracts to TCP-Chat-main (GitHub) or tcp-chat (Gitee)
-:: Find the extracted folder and rename to TCP-Chat
-for /d %%D in (*) do (
-    if exist "%%D\main.py" (
-        move "%%D" "TCP-Chat" >nul 2>&1
-        goto :EXTRACT_DONE
-    )
-)
-for /d %%D in (*) do (
-    if exist "%%D\tcp_chat\__init__.py" (
-        move "%%D" "TCP-Chat" >nul 2>&1
-        goto :EXTRACT_DONE
-    )
-)
-:EXTRACT_DONE
+:: Find the extracted folder
+for /d %%D in (*) do if exist "%%D\main.py" move "%%D" "TCP-Chat" >nul 2>&1
+if not exist "TCP-Chat" for /d %%D in (*) do if exist "%%D\tcp_chat" move "%%D" "TCP-Chat" >nul 2>&1
 cd TCP-Chat 2>nul
 
 :INSTALL
@@ -79,19 +46,8 @@ echo.
 echo Creating desktop shortcut...
 set TARGET=%cd%
 if exist "TCP-Chat.exe" ( set EXE=%TARGET%\TCP-Chat.exe ) else ( set EXE=%TARGET%\main.py )
-
-powershell -Command ^
-    $ws = New-Object -ComObject WScript.Shell; ^
-    $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\TCP Chat.lnk'); ^
-    $s.TargetPath = '%EXE%'; ^
-    $s.WorkingDirectory = '%TARGET%'; ^
-    $s.Save() >nul
-
+powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\TCP Chat.lnk');$s.TargetPath='%EXE%';$s.WorkingDirectory='%TARGET%';$s.Save()" >nul
 echo.
-echo ===============================================
-echo   Done!
-echo ===============================================
-echo.
-echo   Shortcut created: TCP Chat (desktop)
+echo Done! Shortcut created: TCP Chat (desktop)
 echo.
 pause
