@@ -210,12 +210,6 @@ class ChatClientUI:
 
     def _start_tunnel(self, port):
         """自动启动 bore 隧道（静默，失败不阻塞）"""
-        # 先停掉旧隧道
-        if hasattr(self, '_tunnel') and self._tunnel:
-            try:
-                self._tunnel.stop()
-            except Exception:
-                pass
         print("[tunnel] 开始查找隧道工具...")
         from tcp_chat.tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
@@ -771,14 +765,6 @@ class ChatClientUI:
             except Exception:
                 pass
             self.sock = None
-        # 如果是房主，停止服务端和隧道
-        if self._is_host:
-            if hasattr(self, '_tunnel') and self._tunnel:
-                try:
-                    self._tunnel.stop()
-                except Exception:
-                    pass
-            self._server_thread = None
         if hasattr(self, 'title_label'):
             self.title_label.configure(text="聊天室 — 已断开")
         if hasattr(self, 'status_dot'):
@@ -787,6 +773,19 @@ class ChatClientUI:
             self.msg_entry.configure(state="disabled")
         if hasattr(self, 'send_btn'):
             self.send_btn.configure(state="disabled")
+        # 房主断开时关闭服务端和隧道
+        if self._is_host:
+            try:
+                import importlib
+                _srv = importlib.import_module("tcp_chat.server")
+                _srv.server_running = False
+            except Exception:
+                pass
+            if hasattr(self, '_tunnel') and self._tunnel:
+                try:
+                    self._tunnel.stop()
+                except Exception:
+                    pass
     def _on_close(self):
         self.stop_threads = True
         if self.sock:
@@ -798,11 +797,19 @@ class ChatClientUI:
                 self.sock.close()
             except Exception:
                 pass
-        if hasattr(self, '_tunnel') and self._tunnel:
+        # 房主关闭窗口时也停服务端
+        if self._is_host:
             try:
-                self._tunnel.stop()
+                import importlib
+                _srv = importlib.import_module("tcp_chat.server")
+                _srv.server_running = False
             except Exception:
                 pass
+            if hasattr(self, '_tunnel') and self._tunnel:
+                try:
+                    self._tunnel.stop()
+                except Exception:
+                    pass
         self.root.destroy()
 
     def run(self):

@@ -35,6 +35,7 @@ lock = threading.Lock()
 room_name = "聊天室"               # 房间名称
 host_conn = None                    # 房主连接
 next_user_id = 1                   # 自增用户 ID
+server_running = True              # 服务端运行标志
 user_ids = {}                       # {conn: user_id}
 
 
@@ -212,18 +213,20 @@ def start_server():
     discovery_thread.start()
     print(f"📡 房间广播已启动，客户端可以搜索到此房间\n")
 
+    global server_running
     try:
-        while True:
+        while server_running:
             try:
                 conn, addr = server.accept()
             except socket.timeout:
-                continue  # 超时重试，让 KeyboardInterrupt 有机会被捕获
+                continue
             print(f"[新连接] {addr}")
             t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             t.start()
     except KeyboardInterrupt:
         print("\n🛑 服务端关闭中...")
     finally:
+        server_running = False
         server.close()
         print("✅ 服务端已关闭")
 
