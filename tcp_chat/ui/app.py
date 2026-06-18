@@ -3,6 +3,7 @@
 """
 import tkinter as tk
 import customtkinter as ctk
+import socket
 import threading
 import time
 import queue
