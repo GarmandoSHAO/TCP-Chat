@@ -49,6 +49,7 @@ class ChatClientUI:
         self._scale = 1.0
         self._resize_timer = None
         self._base_width = 880
+        self._public_addr = None
         self._drag_data = {"x": 0, "y": 0}
 
         # 构建启动页
@@ -104,9 +105,12 @@ class ChatClientUI:
 
     def _go_create_config(self):
         self._clear_views()
-        self.create_frame, self.create_entries, self.tunnel_var, self.tunnel_status = \
-            build_create_room_view(self.root, self._on_create_room,
-                                   self._back_to_start, self._on_tunnel)
+        self.create_frame, self.create_entries = build_create_room_view(
+            self.root, self._on_create_room, self._back_to_start)
+        self._wan_entry = self.create_entries.get("外网IP")
+        # 一进入创建页面就开始连隧道（不等用户点创建）
+        port = int(self.create_entries["端口"].get() or get("default_port", 8888))
+        self._start_tunnel(port)
 
     def _back_to_start(self):
         if hasattr(self, 'create_frame'):
@@ -162,6 +166,7 @@ class ChatClientUI:
         make_draggable(chat["top_bar"], self._drag_data)
 
         self.title_label.configure(text=f"聊天室 — {self.nickname}")
+        self._add_title_context_menu()
         self.connected = True
 
         self._add_system_message("🟢 已连接到聊天室")
@@ -172,59 +177,6 @@ class ChatClientUI:
         self.root.lift()
         self.root.focus_force()
         self.msg_entry.focus()
-
-    # ======================== 内网穿透 ========================
-
-    def _on_tunnel(self, tunnel_var, status_label):
-        """外网开放开关"""
-        if not tunnel_var.get():
-            status_label.configure(text="")
-            if hasattr(self, '_tunnel') and self._tunnel:
-                self._tunnel.stop()
-                self._tunnel = None
-            return
-
-        port_str = self.create_entries["端口"].get().strip()
-        try:
-            port = int(port_str)
-        except ValueError:
-            port = get("default_port", 8888)
-
-        status_label.configure(text="⏳ 正在建立隧道...（需 3~8 秒）", text_color="#1976d2")
-        self.root.update()
-
-        from tcp_chat.tunnel import auto_tunnel
-        tunnel = auto_tunnel(port)
-        if not tunnel:
-            status_label.configure(
-                text="❌ 需要 bore.exe，下载后放项目目录:\nhttps://github.com/ekzhang/bore/releases",
-                text_color=ERROR_FG)
-            tunnel_var.set(False)
-            return
-
-        def _do_tunnel():
-            ok, msg = tunnel.start()
-            if ok:
-                self.root.after(0, lambda: self._on_tunnel_ready(status_label, msg))
-            else:
-                self.root.after(0, lambda: status_label.configure(
-                    text=f"❌ {msg}", text_color=ERROR_FG))
-                self.root.after(0, lambda: tunnel_var.set(False))
-
-        self._tunnel = tunnel
-        threading.Thread(target=_do_tunnel, daemon=True).start()
-
-    def _on_tunnel_ready(self, status_label, addr):
-        """隧道建立成功"""
-        status_label.configure(
-            text=f"✅ 公网地址: {addr}", text_color="#2e7d32")
-        # 自动填入服务器地址
-        self.create_entries["服务器IP"].delete(0, "end")
-        self.create_entries["服务器IP"].insert(0, addr)
-        # 醒目提示
-        self.create_entries["服务器IP"].configure(fg_color="#e8f5e9")
-        self.root.after(100, lambda: status_label.configure(
-            text=f"✅ 公网地址: {addr}  ← 把这个发给朋友"))
 
     # ======================== 创建房间 ========================
 
@@ -246,9 +198,48 @@ class ChatClientUI:
             target=_srv.start_server, daemon=True)
         self._server_thread.start()
 
+        # 启动隧道（后台，不影响连接）
         self._clear_views()
         self._show_loading("🚀 正在启动房间...")
         self._auto_connect("127.0.0.1", port, nick)
+
+    def _start_tunnel(self, port):
+        """自动启动 bore 隧道（静默，失败不阻塞）"""
+        print("[tunnel] 开始查找隧道工具...")
+        from tcp_chat.tunnel import auto_tunnel
+        tunnel = auto_tunnel(port)
+        if not tunnel:
+            print("[tunnel] ❌ 未找到 bore.exe")
+            return
+        print(f"[tunnel] ✅ 找到 {type(tunnel).__name__}")
+
+        def _run():
+            print("[tunnel] 正在连接 bore.pub...")
+            ok, msg = tunnel.start()
+            print(f"[tunnel] 连接结果: ok={ok}, msg={msg}")
+            if ok:
+                self.root.after(0, lambda a=msg: self._finish_tunnel(a))
+            else:
+                print("[tunnel] ❌ 隧道失败")
+
+        self._tunnel = tunnel
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _finish_tunnel(self, addr):
+        """隧道建立完成"""
+        print(f"[tunnel] ✅ 公网地址: {addr}")
+        self._public_addr = addr
+        if hasattr(self, '_wan_entry') and self._wan_entry:
+            try:
+                self._wan_entry.configure(text_color="#000000")  # 黑色
+                self._wan_entry.delete(0, "end")
+                self._wan_entry.insert(0, addr)
+                print(f"[tunnel] ✅ 已写入外网IP框")
+            except Exception as e:
+                print(f"[tunnel] ❌ 写入失败: {e}")
+        else:
+            print(f"[tunnel] ⚠️ _wan_entry={getattr(self, '_wan_entry', 'NOT_EXISTS')}")
+            print(f"   hasattr={hasattr(self, '_wan_entry')}")
 
     # ======================== 连接逻辑 ========================
 
@@ -437,6 +428,40 @@ class ChatClientUI:
         self.msg_entry.icursor(tk.END)
         self._cmd_hide()
         self.msg_entry.focus_set()
+
+    def _add_title_context_menu(self):
+        """标题标签右键菜单：退出房间 / 查看IP"""
+        self._ctx_menu = tk.Menu(self.root, tearoff=False,
+                                 font=("Segoe UI", 10),
+                                 bg="white", fg="#333333",
+                                 activebackground="#e8f5e9",
+                                 activeforeground="#075e54")
+        self._ctx_menu.add_command(label="🚪 退出房间",
+                                   command=self._disconnect)
+        self._ctx_menu.add_separator()
+        self._ctx_menu.add_command(label="🌐 查看本机 IP",
+                                   command=self._show_ip)
+
+        self.title_label.bind("<Button-3>", self._show_context_menu)
+        self.title_label.bind("<Button-2>", self._show_context_menu)  # macOS
+
+    def _show_context_menu(self, event):
+        """显示右键菜单"""
+        try:
+            self._ctx_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._ctx_menu.grab_release()
+
+    def _show_ip(self):
+        """弹出本机 IP 信息"""
+        from tcp_chat.config import get_local_ip
+        ip = get_local_ip()
+        pub = getattr(self, '_public_addr', None)
+        msg = f"📍 局域网 IP: {ip}\n（发给同网络的朋友）"
+        if pub:
+            msg += f"\n\n🌐 外网地址: {pub}\n（发给外网的朋友）"
+        import tkinter.messagebox as mb
+        mb.showinfo("网络信息", msg, parent=self.root)
 
     def _on_return(self, event):
         """回车：菜单打开时选命令，否则发送消息"""
@@ -720,7 +745,10 @@ class ChatClientUI:
             except Exception:
                 pass
         if hasattr(self, '_tunnel') and self._tunnel:
-            self._tunnel.stop()
+            try:
+                self._tunnel.stop()
+            except Exception:
+                pass
         self.root.destroy()
 
     def run(self):

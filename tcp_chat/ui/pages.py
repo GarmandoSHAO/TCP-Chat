@@ -40,8 +40,8 @@ def build_start_view(container, on_create, on_join):
 
 # ======================== 创建房间配置页 ========================
 
-def build_create_room_view(container, on_create, on_back, on_tunnel=None):
-    """创建房间配置页：IP、端口、房间名、昵称 + 外网开放"""
+def build_create_room_view(container, on_create, on_back):
+    """创建房间配置页：IP、端口、房间名、昵称"""
     frame = ctk.CTkFrame(container, fg_color=WHITE)
     frame.pack(fill="both", expand=True)
 
@@ -58,12 +58,15 @@ def build_create_room_view(container, on_create, on_back, on_tunnel=None):
 
     entries = {}
     fields = [
-        ("服务器IP", local_ip, 22),
-        ("端口", str(get("default_port", 8888)), 10),
-        ("房间名称", get("default_room_name", "聊天室"), 20),
-        ("昵称", get("default_nickname", "用户"), 20),
+        ("局域网IP", local_ip, 22),
+        ("外网IP", "正在建造隧道...", 22, True),
+        ("端口", str(get("default_port", 8888)), 10, False),
+        ("房间名称", get("default_room_name", "聊天室"), 20, False),
+        ("昵称", get("default_nickname", "用户"), 20, False),
     ]
-    for label, default, width in fields:
+    for item in fields:
+        label, default, width = item[0], item[1], item[2]
+        placeholder = item[3] if len(item) > 3 else False
         row = ctk.CTkFrame(form, fg_color="transparent")
         row.pack(fill="x", pady=4)
         ctk.CTkLabel(row, text=label, width=65, anchor="e",
@@ -72,24 +75,10 @@ def build_create_room_view(container, on_create, on_back, on_tunnel=None):
         entry = ctk.CTkEntry(row, font=("Segoe UI", 12),
                               width=width * 8, height=30, corner_radius=6)
         entry.insert(0, default)
+        if placeholder:
+            entry.configure(text_color="#aaaaaa")
         entry.pack(side="left")
         entries[label] = entry
-
-    # 外网开放选项
-    tunnel_var = ctk.BooleanVar(value=False)
-    tunnel_check = ctk.CTkCheckBox(frame, text="🌐 对外网开放（需要 bore）",
-                                    font=("Segoe UI", 11),
-                                    variable=tunnel_var,
-                                    fg_color=CHAT_TITLE,
-                                    bg_color=WHITE)
-    tunnel_check.pack(pady=(4, 0))
-
-    tunnel_status = ctk.CTkLabel(frame, text="", font=("Segoe UI", 9),
-                                  text_color=CHAT_TITLE, bg_color=WHITE)
-    tunnel_status.pack()
-
-    if on_tunnel:
-        tunnel_check.configure(command=lambda: on_tunnel(tunnel_var, tunnel_status))
 
     ctk.CTkButton(frame, text="🚀  创建",
                    font=("Segoe UI", 13, "bold"),
@@ -102,7 +91,7 @@ def build_create_room_view(container, on_create, on_back, on_tunnel=None):
                    fg_color=WHITE, text_color="#888888",
                    hover_color="#f0f0f0",
                    command=on_back).pack(pady=2)
-    return frame, entries, tunnel_var, tunnel_status
+    return frame, entries
 
 
 # ======================== 登录页 ========================
