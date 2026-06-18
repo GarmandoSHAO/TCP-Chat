@@ -480,7 +480,7 @@ class ChatClientUI:
         ctk.CTkLabel(frame, text="局域网 IP", font=("Segoe UI", 9),
                      text_color="#075e54", bg_color="white").pack(anchor="w")
         ctk.CTkButton(frame, text=ip, font=("Segoe UI", 12),
-                       width=250, height=28, corner_radius=5,
+                       width=0, height=28, corner_radius=5,
                        fg_color="#eeeeee", text_color="#333333",
                        hover_color="#dddddd",
                        command=lambda: copy(ip)).pack(pady=(2, 6))
@@ -489,7 +489,7 @@ class ChatClientUI:
             ctk.CTkLabel(frame, text="外网地址", font=("Segoe UI", 9),
                          text_color="#075e54", bg_color="white").pack(anchor="w")
             ctk.CTkButton(frame, text=pub, font=("Segoe UI", 12),
-                           width=250, height=28, corner_radius=5,
+                           width=0, height=28, corner_radius=5,
                            fg_color="#eeeeee", text_color="#333333",
                            hover_color="#dddddd",
                            command=lambda: copy(pub)).pack(pady=(2, 6))
