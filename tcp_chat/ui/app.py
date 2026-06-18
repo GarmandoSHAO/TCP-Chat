@@ -464,8 +464,8 @@ class ChatClientUI:
 
     def _show_ip(self):
         """弹出 IP 窗口，按钮点击复制到剪贴板"""
-        from tcp_chat.config import get_local_ip
-        ip = get_local_ip()
+        from tcp_chat.config import get_local_ip, get
+        ip = f"{get_local_ip()}:{get('default_port', 8888)}"
         pub = getattr(self, '_public_addr', None)
 
         win = ctk.CTkToplevel(self.root, fg_color="white")
