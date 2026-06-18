@@ -765,6 +765,14 @@ class ChatClientUI:
             except Exception:
                 pass
             self.sock = None
+        # 如果是房主，停止服务端和隧道
+        if self._is_host:
+            if hasattr(self, '_tunnel') and self._tunnel:
+                try:
+                    self._tunnel.stop()
+                except Exception:
+                    pass
+            self._server_thread = None
         if hasattr(self, 'title_label'):
             self.title_label.configure(text="聊天室 — 已断开")
         if hasattr(self, 'status_dot'):
