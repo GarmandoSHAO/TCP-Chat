@@ -210,6 +210,12 @@ class ChatClientUI:
 
     def _start_tunnel(self, port):
         """自动启动 bore 隧道（静默，失败不阻塞）"""
+        # 先停掉旧隧道
+        if hasattr(self, '_tunnel') and self._tunnel:
+            try:
+                self._tunnel.stop()
+            except Exception:
+                pass
         print("[tunnel] 开始查找隧道工具...")
         from tcp_chat.tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
