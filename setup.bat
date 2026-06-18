@@ -6,34 +6,65 @@ cd /d "%~dp0"
 set ZIP_URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
 set ZIP_FILE=TCP-Chat.zip
 
-:: If we're already in the project folder, skip download
+:: Already installed?
 if exist "TCP-Chat.exe" goto :INSTALL
 if exist "main.py" goto :INSTALL
-if exist "tcp_chat" goto :INSTALL
 
 echo ===============================================
 echo   TCP Chat - Download ^& Install
 echo ===============================================
 echo.
-echo Downloading from GitHub...
+
+:: Try each download method
+call :DOWNLOAD_CURL
+if %errorlevel% equ 0 goto :EXTRACT
+
+call :DOWNLOAD_PS
+if %errorlevel% equ 0 goto :EXTRACT
+
+call :DOWNLOAD_BITS
+if %errorlevel% equ 0 goto :EXTRACT
+
 echo.
+echo Failed to download. Please download manually:
+echo   %ZIP_URL%
+echo Save the ZIP to this folder and run setup again.
+pause
+exit /b
 
-:: Try multiple download methods
-call :DOWNLOAD
-if %errorlevel% neq 0 (
-    echo.
-    echo FAILED: Could not download from GitHub.
-    echo Possible causes: network restriction, firewall.
-    echo.
-    echo Please download manually:
-    echo   1. Open: %ZIP_URL%
-    echo   2. Save the ZIP to this folder
-    echo   3. Run this setup again
-    echo.
-    pause
-    exit /b
-)
+:DOWNLOAD_CURL
+echo [1/3] curl.exe (Windows built-in) ...
+where curl.exe >nul 2>&1 || exit /b 1
+curl.exe -L -# -o "%ZIP_FILE%" "%ZIP_URL%" 2>&1
+if %errorlevel% neq 0 exit /b 1
+call :CHECK_ZIP && echo Done^^! || exit /b 1
+exit /b 0
 
+:DOWNLOAD_PS
+echo [2/3] PowerShell ...
+powershell -Command "
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+$wc = New-Object System.Net.WebClient;
+$wc.DownloadFile('%ZIP_URL%', '%ZIP_FILE%');
+Write-Host 'Done!'" 2>&1
+if %errorlevel% neq 0 exit /b 1
+call :CHECK_ZIP && exit /b 0 || exit /b 1
+
+:DOWNLOAD_BITS
+echo [3/3] BITS (Background Intelligent Transfer) ...
+powershell -Command "Start-BitsTransfer -Source '%ZIP_URL%' -Destination '%ZIP_FILE%'" 2>&1
+call :CHECK_ZIP && exit /b 0 || exit /b 1
+
+:CHECK_ZIP
+if not exist "%ZIP_FILE%" exit /b 1
+set "SIZE="
+for %%F in ("%ZIP_FILE%") do set SIZE=%%~zF
+if "%SIZE%"=="" exit /b 1
+if %SIZE% LSS 500000 exit /b 1
+exit /b 0
+
+:EXTRACT
+echo.
 echo Extracting...
 tar -xf "%ZIP_FILE%" 2>nul
 if exist "TCP-Chat-main" (
@@ -61,27 +92,6 @@ echo ===============================================
 echo   Done!
 echo ===============================================
 echo.
-echo   Shortcut created on desktop: TCP Chat
+echo   Shortcut created: TCP Chat (desktop)
 echo.
 pause
-exit /b
-
-:DOWNLOAD
-echo   Method 1: curl.exe ...
-curl.exe -L -s -o "%ZIP_FILE%" "%ZIP_URL%" 2>nul
-call :CHECK_FILE "%ZIP_FILE%" && exit /b 0
-
-echo   Method 2: PowerShell ...
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $wc = New-Object System.Net.WebClient; try { $wc.DownloadFile('%ZIP_URL%', '%ZIP_FILE%'); Write-Host 'OK' } catch { exit 1 }" >nul 2>&1
-call :CHECK_FILE "%ZIP_FILE%" && exit /b 0
-
-echo   Method 3: BITS ...
-powershell -Command "Start-BitsTransfer -Source '%ZIP_URL%' -Destination '%ZIP_FILE%'" >nul 2>&1
-call :CHECK_FILE "%ZIP_FILE%" && exit /b 0
-
-exit /b 1
-
-:CHECK_FILE
-if not exist "%1" exit /b 1
-for %%F in ("%1") do if %%~zF LSS 1000 exit /b 1
-exit /b 0
