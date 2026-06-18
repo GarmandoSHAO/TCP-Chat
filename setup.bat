@@ -5,68 +5,57 @@ cd /d "%~dp0"
 
 echo ===============================================
 echo   TCP 聊天室 — 安装程序
+echo   无需任何环境，Windows 10+ 可直接运行
 echo ===============================================
-
-:: 1. 检查 Python
 echo.
-echo [1/4] 检查 Python...
-python --version >nul 2>&1
+
+:: 1. 下载项目压缩包
+set ZIP_FILE=TCP-Chat.zip
+set URL=https://github.com/GarmandoSHAO/TCP-Chat/archive/refs/heads/main.zip
+
+echo [1/3] 正在下载项目... (约 35MB)
+curl -L -# -o "%ZIP_FILE%" "%URL%" 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ 未安装 Python，请先安装 https://python.org
+    echo ❌ 下载失败，请检查网络连接
     pause
     exit /b
 )
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set pyver=%%i
-echo    ✅ Python %pyver%
+echo ✅ 下载完成
 
-:: 2. 下载项目
+:: 2. 解压
 echo.
-echo [2/4] 获取项目...
-if exist TCP-Chat (
-    echo    TCP-Chat 已存在
-    cd TCP-Chat
-    git pull
-    cd ..
-) else (
-    git clone https://github.com/GarmandoSHAO/TCP-Chat.git
-    if %errorlevel% neq 0 (
-        echo ❌ 下载失败，请确保已安装 git
-        pause
-        exit /b
+echo [2/3] 正在解压...
+if not exist "%ZIP_FILE%" (
+    echo ❌ 压缩包不存在
+    pause
+    exit /b
+)
+tar -xf "%ZIP_FILE%" 2>nul
+if exist TCP-Chat-main (
+    if exist TCP-Chat (
+        rmdir /s /q TCP-Chat
     )
-    echo    ✅ 下载完成
+    move TCP-Chat-main TCP-Chat >nul
 )
+del "%ZIP_FILE%" 2>nul
+echo ✅ 解压完成
 
-:: 3. 安装依赖
+:: 3. 创建桌面快捷方式
 echo.
-echo [3/4] 安装依赖...
-cd TCP-Chat
-if exist requirements.txt (
-    pip install -r requirements.txt
+echo [3/3] 生成桌面快捷方式...
+set EXE_PATH=%cd%\TCP-Chat\TCP-Chat.exe
+if not exist "%EXE_PATH%" (
+    echo ⚠️ 未找到 TCP-Chat.exe，请手动运行 main.py（需安装 Python）
+    echo    python TCP-Chat\main.py
 ) else (
-    pip install customtkinter
+    powershell -Command ^
+        $ws = New-Object -ComObject WScript.Shell; ^
+        $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\TCP 聊天室.lnk'); ^
+        $s.TargetPath = '%EXE_PATH%'; ^
+        $s.WorkingDirectory = '%cd%\TCP-Chat'; ^
+        $s.Save() >nul
+    echo ✅ 桌面快捷方式已创建
 )
-echo    ✅ 依赖安装完成
-
-:: 4. 创建桌面快捷方式
-echo.
-echo [4/4] 生成桌面快捷方式...
-if exist TCP-Chat.exe (
-    set target=%cd%\TCP-Chat.exe
-) else (
-    set target=python
-    set args=main.py
-)
-
-powershell -Command ^
-    $ws = New-Object -ComObject WScript.Shell; ^
-    $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\TCP 聊天室.lnk'); ^
-    $s.TargetPath = '%target%'; ^
-    $s.Arguments = '%args%'; ^
-    $s.WorkingDirectory = '%cd%'; ^
-    $s.Save() >nul 2>&1
-
-echo    ✅ 桌面快捷方式已创建
 
 echo.
 echo ===============================================
