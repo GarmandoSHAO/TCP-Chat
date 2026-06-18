@@ -464,7 +464,7 @@ class ChatClientUI:
         ip = get_local_ip()
         pub = getattr(self, '_public_addr', None)
 
-        win = ctk.CTkToplevel(self.root)
+        win = ctk.CTkToplevel(self.root, fg_color="white")
         win.title("网络信息")
         win.geometry("280x160+%d+%d" % (self.root.winfo_x() + 60, self.root.winfo_y() + 80))
         win.resizable(False, False)
