@@ -158,7 +158,7 @@ class ChatClientUI:
         self.chat_frame = chat["frame"]
         self.msg_text = chat["msg_text"]
         self.msg_entry = chat["msg_entry"]
-        self.status_dot = chat["status_dot"]
+        self.status_bar = chat["status_bar"]
         self.title_label = chat["title_label"]
         self.user_list_inner = chat["user_list_inner"]
         self.user_count_label = chat["user_count"]
@@ -597,7 +597,7 @@ class ChatClientUI:
                     if hasattr(self, 'title_label'):
                         self.title_label.configure(text="聊天室 — 已断开")
                     if hasattr(self, 'status_dot'):
-                        self.status_dot.configure(text_color=STATUS_RED)
+                        self.status_bar.configure(text_color=STATUS_RED)
                 elif msg_type == "SCAN_RESULT":
                     name, ip, port = data
                     self.login_entries["地址:端口"].delete(0, "end")
@@ -801,7 +801,7 @@ class ChatClientUI:
         if hasattr(self, 'title_label'):
             self.title_label.configure(text="聊天室 — 已断开")
         if hasattr(self, 'status_dot'):
-            self.status_dot.configure(text_color=STATUS_RED)
+            self.status_bar.configure(text_color=STATUS_RED)
         if hasattr(self, 'msg_entry'):
             self.msg_entry.configure(state="disabled")
         if hasattr(self, 'send_btn'):

@@ -15,9 +15,10 @@ def build_chat_view(container, on_send, on_disconnect):
     top_bar.pack(fill="x", side="top")
     top_bar.pack_propagate(False)
 
-    status_dot = ctk.CTkLabel(top_bar, text="●", font=("Segoe UI", 14),
-                               text_color=STATUS_GREEN, bg_color=WHITE)
-    status_dot.pack(side="left", padx=(10, 2))
+    # 标题标签（绿色左边框 = 在线状态）
+    status_bar = ctk.CTkFrame(top_bar, width=3, height=20, fg_color=STATUS_GREEN,
+                               corner_radius=2)
+    status_bar.pack(side="left", padx=(10, 4))
 
     title_label = ctk.CTkLabel(top_bar, text="聊天室 — 连接中...",
                                 font=("Segoe UI", 12, "bold"),
@@ -25,7 +26,7 @@ def build_chat_view(container, on_send, on_disconnect):
                                 fg_color="white",
                                 corner_radius=6,
                                 cursor="hand2")
-    title_label.pack(side="left", padx=6)
+    title_label.pack(side="left", padx=(0, 6))
     title_label.bind("<Enter>", lambda e: title_label.configure(
         fg_color="#e8f5e9"))
     title_label.bind("<Leave>", lambda e: title_label.configure(
@@ -182,7 +183,7 @@ def build_chat_view(container, on_send, on_disconnect):
     return {
         "frame": frame,
         "top_bar": top_bar,
-        "status_dot": status_dot,
+        "status_bar": status_bar,
         "title_label": title_label,
         "msg_text": msg_text,
         "msg_frame": msg_frame,
