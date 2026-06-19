@@ -53,8 +53,9 @@ def broadcast(message: str, sender_conn=None):
 
 def close_room():
     """关闭房间：踢出所有成员，标记状态为 0"""
-    global room_status, clients, host_conn, user_ids
+    global room_status, server_running, clients, host_conn, user_ids
     room_status = 0
+    server_running = False
     with lock:
         for conn in list(clients.keys()):
             try:
@@ -195,15 +196,15 @@ def handle_client(conn: socket.socket, addr):
 
 def broadcast_discovery():
     """启动 UDP 广播线程，让客户端发现此服务器"""
+    global room_status
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     
     message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}".encode("utf-8")
     
-    while True:
+    while room_status == 1:
         try:
-            # 每 2 秒发送一次广播
             sock.sendto(message, (BROADCAST_ADDRESS, DISCOVERY_PORT))
             time.sleep(2)
         except Exception as e:
@@ -213,6 +214,7 @@ def broadcast_discovery():
 
 def start_server():
     """启动服务端"""
+    global server_running
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
