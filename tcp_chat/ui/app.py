@@ -136,7 +136,7 @@ class ChatClientUI:
             self._clear_views()
             chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
             self.chat_frame = chat["frame"]
-            self._build_tab_bar(self.chat_frame)
+            # first chat creation
         else:
             chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
             self.chat_frame.pack_forget()
@@ -147,6 +147,7 @@ class ChatClientUI:
         self.status_bar = chat["status_bar"]
         self.title_label = chat["title_label"]
         self.user_list_inner = chat["user_list_inner"]
+        self.tab_container = chat["tab_container"]
         self.user_count_label = chat["user_count"]
         self.send_btn = chat["send_btn"]
         make_draggable(chat["top_bar"], self._drag_data)
@@ -384,31 +385,27 @@ class ChatClientUI:
 
     # ======================== 多标签 + 弹出开始窗口 ========================
 
-    def _build_tab_bar(self, parent):
-        """在聊天顶栏下方创建标签栏"""
-        self._tab_bar = ctk.CTkFrame(parent, height=32, fg_color="#f0f0f0", corner_radius=0)
-        self._tab_bar.pack(fill="x", before=self.chat_frame.winfo_children()[0] if hasattr(self, 'chat_frame') else None)
-        self._tab_bar.pack_propagate(False)
-        self._tab_inner = ctk.CTkFrame(self._tab_bar, fg_color="transparent")
-        self._tab_inner.pack(side="left", fill="x", expand=True)
-        # + 按钮放在标签栏右侧
-        self._tab_add_btn = ctk.CTkButton(self._tab_bar, text="+", width=26, height=24,
-                                           font=("Segoe UI", 14, "bold"), corner_radius=4,
-                                           fg_color="#f0f0f0", text_color="#075e54",
-                                           hover_color="#e0e0e0", command=self._on_show_menu)
-        self._tab_add_btn.pack(side="right", padx=(0, 4))
-
     def _refresh_tabs(self):
-        """刷新标签栏"""
-        for w in self._tab_inner.winfo_children(): w.destroy()
+        """刷新标签栏（与顶栏同排）"""
+        if not hasattr(self, 'tab_container') or not self._tabs:
+            return
+        for w in self.tab_container.winfo_children():
+            w.destroy()
         for i, tab in enumerate(self._tabs):
-            bg = "#075e54" if i == self._active_tab else "#e0e0e0"
-            fg = "white" if i == self._active_tab else "#333333"
-            btn = ctk.CTkButton(self._tab_inner, text=tab["name"], font=("Segoe UI", 10),
-                                 width=100, height=24, corner_radius=4,
-                                 fg_color=bg, text_color=fg, hover_color="#054d44",
+            if i == self._active_tab:
+                continue
+            # 每个标签：状态条 + 名称
+            frame = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+            frame.pack(side="left", padx=(2, 0))
+            color = STATUS_GREEN if tab.get("connected") else STATUS_RED
+            ctk.CTkFrame(frame, width=3, height=16, fg_color=color,
+                         corner_radius=2).pack(side="left", padx=(0, 3))
+            btn = ctk.CTkButton(frame, text=tab["name"], font=("Segoe UI", 10),
+                                 width=60, height=22, corner_radius=4,
+                                 fg_color="#e8e8e8", text_color="#333333",
+                                 hover_color="#d0d0d0",
                                  command=lambda idx=i: self._switch_tab(idx))
-            btn.pack(side="left", padx=(2, 0))
+            btn.pack(side="left")
 
     def _add_tab(self, name, sock, nickname):
         """添加新标签页"""

@@ -41,6 +41,10 @@ def build_chat_view(container, on_send, on_disconnect, on_menu=None):
     title_label.bind("<Leave>", lambda e: title_label.configure(
         fg_color="white"))
 
+    # 标签容器（与顶栏同排）
+    tab_container = ctk.CTkFrame(top_bar, fg_color="transparent")
+    tab_container.pack(side="left", fill="x", expand=True)
+
     # ---- 主体 ----
     main_area = ctk.CTkFrame(frame, fg_color="transparent")
     main_area.pack(fill="both", expand=True, padx=0, pady=0)
@@ -193,6 +197,7 @@ def build_chat_view(container, on_send, on_disconnect, on_menu=None):
         "frame": frame,
         "top_bar": top_bar,
         "menu_btn": menu_btn,
+        "tab_container": tab_container,
         "status_bar": status_bar,
         "title_label": title_label,
         "msg_text": msg_text,
