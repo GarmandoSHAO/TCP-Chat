@@ -394,6 +394,12 @@ class ChatClientUI:
         self._update_user_list_display(self.online_users)
         self._refresh_tabs()
 
+        # 9. 根据连接状态启用/禁用输入控件
+        if self.msg_entry:
+            self.msg_entry.configure(state="normal" if self.connected else "disabled")
+        if self.send_btn:
+            self.send_btn.configure(state="normal" if self.connected else "disabled")
+
     # ======================== 连接流程 ========================
 
     def _switch_to_chat(self, info):
@@ -535,6 +541,9 @@ class ChatClientUI:
                     # 如果有登录界面的状态标签则更新（连接失败场景）
                     pass
                 elif msg_type == "DISCONNECTED":
+                    # 忽略来自已关闭房间的残留消息
+                    if getattr(self, "_disconnecting", False):
+                        continue
                     self._add_system_message(f"🔴 {data}")
                     self.connected = False
                     if self.sock:
@@ -1143,48 +1152,62 @@ class ChatClientUI:
         ).pack(side="left")
 
     def _disconnect(self):
-        """断开当前连接"""
-        # 删除当前房间的缓存文件
-        room_id = getattr(self, "room_id", None)
+        """断开当前连接并移除标签页"""
+        if self._active_tab < 0 or self._active_tab >= len(self._tabs):
+            return
+        self._disconnecting = True
+        tab = self._tabs[self._active_tab]
+        room_id = tab.get("room_id")
+        tab_sock = tab.get("sock")
+
+        # 1. 删除缓存
         if room_id:
-            # 先保存一次最新状态
             self._save_current_tab()
             cache_manager.delete(room_id)
-        self.stop_threads = True
-        self.connected = False
-        if self.sock:
+            self._joined_room_ids.discard(room_id)
+
+        # 2. 关闭当前房间的 socket（该房间的接收线程会因 OSError 自行退出）
+        if tab_sock:
             try:
-                self.sock.shutdown(socket.SHUT_RDWR)
+                tab_sock.shutdown(socket.SHUT_RDWR)
             except Exception:
                 pass
             try:
-                self.sock.close()
+                tab_sock.close()
             except Exception:
                 pass
+
+        # 3. 如果是房主，关闭该房间的 server（不影响其他房间）
+        if tab.get("_server"):
+            try:
+                tab["_server"].close_room()
+            except Exception:
+                pass
+        if tab.get("_tunnel"):
+            try:
+                tab["_tunnel"].stop()
+            except Exception:
+                pass
+
+        # 4. 从标签列表中移除当前标签
+        removed_idx = self._active_tab
+        self._tabs.pop(removed_idx)
+
+        # 5. 切到其他房间，或关闭界面
+        if self._tabs:
+            new_idx = min(removed_idx, len(self._tabs) - 1)
+            self._switch_tab(new_idx)
+        else:
+            self._active_tab = -1
+            self.connected = False
             self.sock = None
-        if self.title_label:
-            self.title_label.configure(text="聊天室 — 已断开")
-        if self.status_bar:
-            self.status_bar.configure(fg_color=STATUS_RED)
-        if self.msg_entry:
-            self.msg_entry.configure(state="disabled")
-        if self.send_btn:
-            self.send_btn.configure(state="disabled")
-        if self._is_host:
-            # 使用当前标签页关联的 server 实例，不影响其他房间
-            tab = self._tabs[self._active_tab] if 0 <= self._active_tab < len(self._tabs) else None
-            srv = tab.get("_server") if tab else None
-            if srv:
-                try:
-                    srv.close_room()
-                except Exception:
-                    pass
-            if self._tunnel:
-                try:
-                    self._tunnel.stop()
-                except Exception:
-                    pass
-                self._tunnel = None
+            if self.msg_entry:
+                self.msg_entry.configure(state="disabled")
+            if self.send_btn:
+                self.send_btn.configure(state="disabled")
+            self.root.withdraw()
+            self._open_initial_interface()
+        self._disconnecting = False
 
     def _on_close(self):
         """窗口关闭事件（清除所有缓存）"""
