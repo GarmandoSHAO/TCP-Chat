@@ -809,8 +809,14 @@ class ChatClientUI:
         self._update_user_list_display(self.online_users)
 
     def _update_user_list_display(self, users):
-        for w in self.user_list_inner.winfo_children(): w.destroy()
-        if not users: self.user_count_label.configure(text="0 人在线"); return
+        if not getattr(self, 'user_list_inner', None): return
+        try:
+            for w in self.user_list_inner.winfo_children(): w.destroy()
+        except: pass
+        if not users:
+            if getattr(self, 'user_count_label', None):
+                self.user_count_label.configure(text="0 人在线")
+            return
         ds = max(9, int(12 * self._scale)); ns = max(10, int(12 * self._scale))
         for nick, uid in users:
             row = ctk.CTkFrame(self.user_list_inner, fg_color="transparent")
