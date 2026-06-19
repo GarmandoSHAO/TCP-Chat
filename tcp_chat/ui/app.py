@@ -358,6 +358,8 @@ class ChatClientUI:
         self.send_btn = tab.get("send_btn")
         self.connected = tab.get("connected", False)
         self.room_id = tab.get("room_id")
+        self._host = tab.get("host")
+        self._port = tab.get("port")
         if tab.get("sock"):
             self.sock = tab["sock"]
 
@@ -1005,8 +1007,9 @@ class ChatClientUI:
 
     def _show_ip(self):
         """显示本机 IP、隧道地址和房间号"""
-        from ..config import get_local_ip, get
-        ip = f"{get_local_ip()}:{get('default_port', 8888)}"
+        from ..config import get_local_ip
+        port = getattr(self, "_port", 8888) or 8888
+        ip = f"{get_local_ip()}:{port}"
         pub = getattr(self, "_public_addr", None)
         room_id = getattr(self, "room_id", None)
         win = ctk.CTkToplevel(self.root, fg_color="white")
