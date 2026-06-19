@@ -37,6 +37,7 @@ host_conn = None                    # 房主连接
 next_user_id = 1                   # 自增用户 ID
 user_ids = {}                       # {conn: user_id}
 room_status = 1                     # 1=开放, 0=关闭
+server_running = True               # 服务端运行标志
 
 
 def broadcast(message: str, sender_conn=None):
