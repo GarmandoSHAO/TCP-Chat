@@ -153,7 +153,7 @@ class ChatClientUI:
         self.root.resizable(True, True)
 
         self._clear_views()
-        chat = build_chat_view(self.root, self._send_message, self._disconnect)
+        chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
 
         self.chat_frame = chat["frame"]
         self.msg_text = chat["msg_text"]
@@ -782,6 +782,18 @@ class ChatClientUI:
         if hasattr(self, 'msg_entry'):
             self.msg_entry.configure(font=("Segoe UI", max(10, int(12 * scale))))
         self._update_user_list_display(self.online_users)
+
+    def _on_show_menu(self):
+        """+ 按钮：切换开始界面显示（聊天不中断）"""
+        if hasattr(self, 'start_frame') and self.start_frame:
+            try:
+                self.start_frame.pack_forget()
+                self.start_frame = None
+            except Exception:
+                pass
+            return
+        self.start_frame = build_start_view(
+            self.root, self._go_create_config, self._on_join_room)
 
     # ======================== 断开与关闭 ========================
 
