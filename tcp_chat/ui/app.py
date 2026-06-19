@@ -475,9 +475,9 @@ class ChatClientUI:
 
         def _go_create():
             _clear()
-            frame, entries = build_create_room_view(win, _do_create, _go_start)
+            frame, e = build_create_room_view(win, lambda: _do_create(e), _go_start)
 
-        def _do_create():
+        def _do_create(entries):
             nick = entries["昵称"].get().strip() or "用户"
             addr = entries["局域网IP:端口"].get().strip()
             port = 8888
