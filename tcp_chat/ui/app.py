@@ -50,6 +50,8 @@ class ChatClientUI:
         self._drag_data = {"x": 0, "y": 0}
         self._blocked_users = set()
         self._private_chat_with = None
+        self._tabs = []
+        self._active_tab = -1
         if auto_connect:
             host, port, nick = auto_connect
             self.nickname = nick
@@ -127,12 +129,19 @@ class ChatClientUI:
     def _switch_to_chat(self, welcome_msg, login_result):
         self.root.unbind("<Return>")
         win = get("window", {})
-        self.root.geometry(f"{win.get('chat_width', 880)}x{win.get('chat_height', 640)}")
-        self.root.minsize(700, 500)
-        self.root.resizable(True, True)
-        self._clear_views()
-        chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
-        self.chat_frame = chat["frame"]
+        if not getattr(self, 'chat_frame', None):
+            self.root.geometry(f"{win.get('chat_width', 880)}x{win.get('chat_height', 640)}")
+            self.root.minsize(700, 500)
+            self.root.resizable(True, True)
+            self._clear_views()
+            chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
+            self.chat_frame = chat["frame"]
+            self._build_tab_bar(self.chat_frame)
+        else:
+            chat = build_chat_view(self.root, self._send_message, self._disconnect, on_menu=self._on_show_menu)
+            self.chat_frame.pack_forget()
+            chat["frame"].pack(fill="both", expand=True)
+            self.chat_frame = chat["frame"]
         self.msg_text = chat["msg_text"]
         self.msg_entry = chat["msg_entry"]
         self.status_bar = chat["status_bar"]
@@ -150,6 +159,18 @@ class ChatClientUI:
                 _srv = importlib.import_module("tcp_chat.server")
                 _srv.room_status = 1
             except: pass
+        # Store in active tab
+        if self._active_tab >= 0 and self._active_tab < len(self._tabs):
+            t = self._tabs[self._active_tab]
+            t["chat_frame"] = self.chat_frame
+            t["msg_text"] = self.msg_text
+            t["msg_entry"] = self.msg_entry
+            t["user_list_inner"] = self.user_list_inner
+            t["user_count"] = self.user_count_label
+            t["status_bar"] = self.status_bar
+            t["title_label"] = self.title_label
+            t["send_btn"] = self.send_btn
+            t["online_users"] = self.online_users
         self._add_system_message("🟢 已连接到聊天室")
         if login_result: self._display_message(login_result)
         self._build_command_menu()
@@ -361,7 +382,77 @@ class ChatClientUI:
             if self._cmd_selected >= 0: self._cmd_insert_selected(); return "break"
         return self._send_message() or "break"
 
-    # ======================== 弹出开始窗口 ========================
+    # ======================== 多标签 + 弹出开始窗口 ========================
+
+    def _build_tab_bar(self, parent):
+        """在聊天顶栏下方创建标签栏"""
+        self._tab_bar = ctk.CTkFrame(parent, height=32, fg_color="#f0f0f0", corner_radius=0)
+        self._tab_bar.pack(fill="x", before=self.chat_frame.winfo_children()[0] if hasattr(self, 'chat_frame') else None)
+        self._tab_bar.pack_propagate(False)
+        self._tab_inner = ctk.CTkFrame(self._tab_bar, fg_color="transparent")
+        self._tab_inner.pack(side="left", fill="x", expand=True)
+        # + 按钮放在标签栏右侧
+        self._tab_add_btn = ctk.CTkButton(self._tab_bar, text="+", width=26, height=24,
+                                           font=("Segoe UI", 14, "bold"), corner_radius=4,
+                                           fg_color="#f0f0f0", text_color="#075e54",
+                                           hover_color="#e0e0e0", command=self._on_show_menu)
+        self._tab_add_btn.pack(side="right", padx=(0, 4))
+
+    def _refresh_tabs(self):
+        """刷新标签栏"""
+        for w in self._tab_inner.winfo_children(): w.destroy()
+        for i, tab in enumerate(self._tabs):
+            bg = "#075e54" if i == self._active_tab else "#e0e0e0"
+            fg = "white" if i == self._active_tab else "#333333"
+            btn = ctk.CTkButton(self._tab_inner, text=tab["name"], font=("Segoe UI", 10),
+                                 width=100, height=24, corner_radius=4,
+                                 fg_color=bg, text_color=fg, hover_color="#054d44",
+                                 command=lambda idx=i: self._switch_tab(idx))
+            btn.pack(side="left", padx=(2, 0))
+
+    def _add_tab(self, name, sock, nickname):
+        """添加新标签页"""
+        tab_id = len(self._tabs)
+        tab = {
+            "id": tab_id, "name": name, "sock": sock, "nickname": nickname,
+            "connected": True, "online_users": [],
+            "msg_text": None, "msg_frame": None,
+            "user_list_inner": None, "user_count": None,
+            "top_bar": None, "status_bar": None,
+            "title_label": None, "msg_entry": None, "send_btn": None,
+            "chat_frame": None,
+        }
+        self._tabs.append(tab)
+        self._switch_tab(tab_id)
+        return tab_id
+
+    def _switch_tab(self, index):
+        """切换到指定标签"""
+        if index < 0 or index >= len(self._tabs): return
+        # 隐藏当前标签
+        if self._active_tab >= 0 and self._active_tab < len(self._tabs):
+            old = self._tabs[self._active_tab]
+            if old["chat_frame"]:
+                try: old["chat_frame"].pack_forget()
+                except: pass
+        # 显示新标签
+        self._active_tab = index
+        tab = self._tabs[index]
+        if tab["chat_frame"]:
+            tab["chat_frame"].pack(fill="both", expand=True)
+        # 更新引用
+        self.sock = tab["sock"]
+        self.nickname = tab["nickname"]
+        self.msg_text = tab["msg_text"]
+        self.msg_entry = tab["msg_entry"]
+        self.online_users = tab["online_users"]
+        self.user_list_inner = tab["user_list_inner"]
+        self.user_count_label = tab["user_count"]
+        self.status_bar = tab["status_bar"]
+        self.title_label = tab["title_label"]
+        self.send_btn = tab["send_btn"]
+        self.connected = tab["connected"]
+        self._refresh_tabs()
 
     def _on_show_menu(self):
         from .start_page import build_start_view
@@ -399,6 +490,10 @@ class ChatClientUI:
             _srv.room_status = 0
             threading.Thread(target=_srv.start_server, daemon=True).start()
             self._start_tunnel(port)
+            self.nickname = nick
+            self._is_host = True
+            self._add_tab(nick, None, nick)
+            self._auto_connect("127.0.0.1", port, nick)
             _clear()
             ctk.CTkLabel(win, text="🚀 房间已创建！", font=("Segoe UI", 14),
                          bg_color="white").pack(expand=True)
@@ -429,7 +524,10 @@ class ChatClientUI:
                 try:
                     sock, welcome, login = connect_server(host, port, nick)
                     self.root.after(0, lambda: status.configure(text="✅ 已连接", text_color="#2e7d32"))
-                    self.sock = sock; self.connected = True
+                    self.nickname = nick
+                    self.sock = sock
+                    self.connected = True
+                    self._add_tab(nick, sock, nick)
                     self.msg_queue.put(("CONNECTED", (welcome, login)))
                     self.stop_threads = False
                     threading.Thread(target=start_receive, args=(sock, self.msg_queue, lambda: self.stop_threads), daemon=True).start()
