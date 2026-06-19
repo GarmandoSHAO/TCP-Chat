@@ -541,10 +541,11 @@ class ChatClientUI:
                     # 如果有登录界面的状态标签则更新（连接失败场景）
                     pass
                 elif msg_type == "DISCONNECTED":
-                    # 忽略来自已关闭房间的残留消息
-                    if getattr(self, "_disconnecting", False):
+                    msg, sock_id = data
+                    # 只处理属于当前标签的断开消息，忽略已关闭房间的残留
+                    if sock_id != id(self.sock):
                         continue
-                    self._add_system_message(f"🔴 {data}")
+                    self._add_system_message(f"🔴 {msg}")
                     self.connected = False
                     if self.sock:
                         try:
@@ -1155,7 +1156,6 @@ class ChatClientUI:
         """断开当前连接并移除标签页"""
         if self._active_tab < 0 or self._active_tab >= len(self._tabs):
             return
-        self._disconnecting = True
         tab = self._tabs[self._active_tab]
         room_id = tab.get("room_id")
         tab_sock = tab.get("sock")
@@ -1207,7 +1207,6 @@ class ChatClientUI:
                 self.send_btn.configure(state="disabled")
             self.root.withdraw()
             self._open_initial_interface()
-        self._disconnecting = False
 
     def _on_close(self):
         """窗口关闭事件（清除所有缓存）"""

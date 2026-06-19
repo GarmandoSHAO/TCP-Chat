@@ -43,6 +43,7 @@ def connect_server(host, port, nickname, timeout=5):
 
 def start_receive(sock, msg_queue, stop_check):
     """后台接收线程：持续收消息，放入队列。stop_check 是可调用对象，返回 True 时退出"""
+    _sock_id = id(sock)  # 记录 socket 标识，用于消息过滤
     while True:
         if callable(stop_check) and stop_check():
             break
@@ -50,7 +51,7 @@ def start_receive(sock, msg_queue, stop_check):
             sock.settimeout(0.5)
             data = sock.recv(4096)
             if not data:
-                msg_queue.put(("DISCONNECTED", "服务器已关闭连接"))
+                msg_queue.put(("DISCONNECTED", ("服务器已关闭连接", _sock_id)))
                 break
             msg_queue.put(("MESSAGE", data.decode("utf-8")))
         except socket.timeout:
@@ -59,7 +60,7 @@ def start_receive(sock, msg_queue, stop_check):
             # 如果是主动停止不报错
             if callable(stop_check) and stop_check():
                 break
-            msg_queue.put(("DISCONNECTED", "与服务器的连接已断开"))
+            msg_queue.put(("DISCONNECTED", ("与服务器的连接已断开", _sock_id)))
             break
 
 
