@@ -160,9 +160,11 @@ class ChatClientUI:
                 _srv = importlib.import_module("tcp_chat.server")
                 _srv.room_status = 1
             except: pass
-        # Store in active tab
         if self._active_tab >= 0 and self._active_tab < len(self._tabs):
             t = self._tabs[self._active_tab]
+            t["sock"] = self.sock
+            t["connected"] = self.connected
+            t["nickname"] = self.nickname
             t["chat_frame"] = self.chat_frame
             t["msg_text"] = self.msg_text
             t["msg_entry"] = self.msg_entry
@@ -449,6 +451,8 @@ class ChatClientUI:
         self.title_label = tab["title_label"]
         self.send_btn = tab["send_btn"]
         self.connected = tab["connected"]
+        if tab["sock"]:
+            self.sock = tab["sock"]
         self._refresh_tabs()
 
     def _on_show_menu(self):
