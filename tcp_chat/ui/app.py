@@ -109,14 +109,6 @@ class ChatClientUI:
         self.create_frame, self.create_entries = build_create_room_view(
             self.root, self._on_create_room, self._back_to_start)
         self._wan_entry = self.create_entries.get("外网IP")
-        # 一进入创建页面就开始连隧道
-        addr = self.create_entries["局域网IP:端口"].get()
-        port = get("default_port", 8888)
-        if ":" in addr:
-            p = addr.rsplit(":", 1)[1]
-            if p.isdigit():
-                port = int(p)
-        self._start_tunnel(port)
 
     def _back_to_start(self):
         if hasattr(self, 'create_frame'):
