@@ -784,16 +784,18 @@ class ChatClientUI:
         self._update_user_list_display(self.online_users)
 
     def _on_show_menu(self):
-        """+ 按钮：切换开始界面显示（聊天不中断）"""
-        if hasattr(self, 'start_frame') and self.start_frame:
+        """+ 按钮：覆盖菜单在聊天之上（聊天不中断）"""
+        if hasattr(self, '_menu_overlay') and self._menu_overlay:
             try:
-                self.start_frame.pack_forget()
-                self.start_frame = None
+                self._menu_overlay.destroy()
             except Exception:
                 pass
+            self._menu_overlay = None
             return
-        self.start_frame = build_start_view(
-            self.root, self._go_create_config, self._on_join_room)
+        overlay = ctk.CTkFrame(self.chat_frame, fg_color="white", corner_radius=0)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        build_start_view(overlay, self._go_create_config, self._on_join_room)
+        self._menu_overlay = overlay
 
     # ======================== 断开与关闭 ========================
 
