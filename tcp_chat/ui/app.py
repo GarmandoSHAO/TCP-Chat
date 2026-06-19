@@ -129,10 +129,11 @@ class ChatClientUI:
         if not self._chat_built and not self.sock:
             self.root.destroy()
 
-    def on_room_created(self, nickname, host, port, tunnel=None):
+    def on_room_created(self, nickname, host, port, tunnel=None, server=None):
         """创建房间回调（由 InitialInterface 调用）"""
         self.nickname = nickname
         self._is_host = True
+        self._pending_server = server  # 保存 server 实例，后续传给标签页
         # 重置外网地址和隧道（新房间新隧道）
         self._public_addr = None
         self._tunnel = None
@@ -166,10 +167,16 @@ class ChatClientUI:
         如已加入同一房间则忽略
         """
         if self._is_already_in_room(host, port, room_id):
+            # 先向服务端发送 /quit 让服务端正确移除用户，再关闭连接
+            try:
+                sock.sendall("/quit".encode("utf-8"))
+            except Exception:
+                pass
             try:
                 sock.close()
             except Exception:
                 pass
+            self.msg_queue.put(("MESSAGE", "❌ 已在該房間中，不可重複加入"))
             return
 
         self.nickname = nickname
@@ -438,8 +445,10 @@ class ChatClientUI:
             "_host_id": None,       # 房主 ID
             "_public_addr": getattr(self, "_public_addr", None),
             "_tunnel": getattr(self, "_tunnel", None),
+            "_server": getattr(self, "_pending_server", None),  # 独立的 server 实例
         }
         self._tabs.append(tab)
+        self._pending_server = None  # 清理暂存
         if room_id:
             self._joined_room_ids.add(room_id)
         self._switch_tab(tab_id)
@@ -448,14 +457,11 @@ class ChatClientUI:
         if login_result:
             self._display_message(login_result)
 
-        # 房主开放房间
+        # 房主开放房间（使用标签页自己的 server 实例）
         if self._is_host:
-            try:
-                import importlib
-                _srv = importlib.import_module("tcp_chat.server")
-                _srv.room_status = 1
-            except Exception:
-                pass
+            srv = tab.get("_server")
+            if srv:
+                srv.room_status = 1
 
         self.root.lift()
         self.root.focus_force()
@@ -1132,12 +1138,14 @@ class ChatClientUI:
         if self.send_btn:
             self.send_btn.configure(state="disabled")
         if self._is_host:
-            try:
-                import importlib
-                _srv = importlib.import_module("tcp_chat.server")
-                _srv.close_room()
-            except Exception:
-                pass
+            # 使用当前标签页关联的 server 实例，不影响其他房间
+            tab = self._tabs[self._active_tab] if 0 <= self._active_tab < len(self._tabs) else None
+            srv = tab.get("_server") if tab else None
+            if srv:
+                try:
+                    srv.close_room()
+                except Exception:
+                    pass
             if self._tunnel:
                 try:
                     self._tunnel.stop()
@@ -1158,19 +1166,22 @@ class ChatClientUI:
                 self.sock.close()
             except Exception:
                 pass
-        if self._is_host:
-            try:
-                import importlib
-                _srv = importlib.import_module("tcp_chat.server")
-                _srv.close_room()
-            except Exception:
-                pass
-            if self._tunnel:
+        # 关闭所有房间的 server（遍历所有标签页）
+        for tab in self._tabs:
+            srv = tab.get("_server")
+            if srv:
                 try:
-                    self._tunnel.stop()
+                    srv.close_room()
                 except Exception:
                     pass
-                self._tunnel = None
+        # 停用所有隧道
+        for tab in self._tabs:
+            t = tab.get("_tunnel")
+            if t:
+                try:
+                    t.stop()
+                except Exception:
+                    pass
         self.root.destroy()
 
     def run(self):

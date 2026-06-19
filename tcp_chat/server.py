@@ -10,11 +10,11 @@ import threading
 import time
 import random
 
-# ========== 配置 ==========
+# ========== 配置常量 ==========
 HOST = "0.0.0.0"                    # 监听所有网卡
-PORT = 8888                         # TCP 端口号
 DISCOVERY_PORT = 9999              # UDP 广播发现端口
 BROADCAST_ADDRESS = "255.255.255.255"  # 广播地址
+
 
 # ========== 获取本机 IP ==========
 def get_local_ip():
@@ -28,239 +28,254 @@ def get_local_ip():
     except:
         return "127.0.0.1"
 
+
 LOCAL_IP = get_local_ip()
 
-# ========== 全局状态 ==========
-clients = {}                        # {conn: nickname}
-lock = threading.Lock()
-room_name = "聊天室"               # 房间名称
-host_conn = None                    # 房主连接
-next_user_id = 1                   # 自增用户 ID
-user_ids = {}                       # {conn: user_id}
-room_status = 0                     # 1=开放, 0=关闭（默认关闭）
-server_running = False              # 服务端运行标志
-room_id = ""                        # 房间唯一 ID（启动时根据时间生成）
 
+class ChatServer:
+    """聊天室服务端 — 每个实例管理一个独立的聊天房间"""
 
-def broadcast(message: str, sender_conn=None):
-    """群发消息（可选排除发送者）"""
-    with lock:
-        for conn in list(clients.keys()):
-            if conn != sender_conn:
+    def __init__(self, port: int = 8888, room_name: str = "聊天室"):
+        self.PORT = port
+        self.room_name = room_name
+        self.HOST = HOST
+        self.DISCOVERY_PORT = DISCOVERY_PORT
+        self.BROADCAST_ADDRESS = BROADCAST_ADDRESS
+        self.LOCAL_IP = LOCAL_IP
+
+        # ---- 每个房间独立的状态 ----
+        self.clients = {}            # {conn: nickname}
+        self.lock = threading.Lock()
+        self.host_conn = None        # 房主连接
+        self.next_user_id = 1        # 自增用户 ID
+        self.user_ids = {}           # {conn: user_id}
+        self.room_status = 0         # 1=开放, 0=关闭（默认关闭）
+        self.server_running = False  # 服务端运行标志
+        self.room_id = ""            # 房间唯一 ID（启动时根据时间生成）
+
+    def broadcast(self, message: str, sender_conn=None):
+        """群发消息（可选排除发送者）"""
+        with self.lock:
+            for conn in list(self.clients.keys()):
+                if conn != sender_conn:
+                    try:
+                        conn.sendall(message.encode("utf-8"))
+                    except:
+                        pass
+
+    def close_room(self):
+        """关闭房间：踢出所有成员，标记状态为 0"""
+        self.room_status = 0
+        with self.lock:
+            for conn in list(self.clients.keys()):
                 try:
-                    conn.sendall(message.encode("utf-8"))
+                    conn.sendall("🔴 房间已关闭\n".encode("utf-8"))
+                    conn.close()
                 except:
                     pass
+            self.clients.clear()
+            self.host_conn = None
+            self.user_ids.clear()
 
+    def send_to(self, target_nick: str, message: str):
+        """私聊发送"""
+        with self.lock:
+            for conn, nick in self.clients.items():
+                if nick == target_nick:
+                    try:
+                        conn.sendall(message.encode("utf-8"))
+                        return True
+                    except:
+                        return False
+        return False
 
-def close_room():
-    """关闭房间：踢出所有成员，标记状态为 0"""
-    global room_status, clients, host_conn, user_ids
-    room_status = 0
-    with lock:
-        for conn in list(clients.keys()):
+    def list_users(self) -> str:
+        """返回在线用户列表字符串（带隐藏 ID 供客户端追踪）"""
+        with self.lock:
+            items = []
+            for conn, nick in self.clients.items():
+                uid = self.user_ids.get(conn, 0)
+                if conn == self.host_conn:
+                    items.append(f"👑{nick}|{uid}")
+                else:
+                    items.append(f"{nick}|{uid}")
+        return "当前在线: " + ", ".join(items) if items else "当前没有其他在线用户"
+
+    def handle_client(self, conn: socket.socket, addr):
+        """处理单个客户端通信"""
+        nickname = None
+        user_id = None
+        try:
+            # ---- 检查房间状态（房主自连允许通过） ----
+            if self.room_status == 0 and addr[0] != "127.0.0.1":
+                conn.sendall("🔴 房间已关闭或尚未开放\n".encode("utf-8"))
+                conn.close()
+                return
+
+            # ---- 欢迎 & 登录 ----
+            conn.sendall(f"🟢 欢迎来到「{self.room_name}」！(房间号: {self.room_id})\n请输入你的昵称: ".encode("utf-8"))
+            nickname = conn.recv(1024).decode("utf-8").strip()
+            if not nickname:
+                nickname = f"用户{addr[1]}"
+
+            with self.lock:
+                # 分配唯一 ID
+                user_id = self.next_user_id
+                self.next_user_id += 1
+                self.clients[conn] = nickname
+                self.user_ids[conn] = user_id
+                # 第一个连接的用户设为房主
+                if self.host_conn is None:
+                    self.host_conn = conn
+            self.broadcast(f"📢 {nickname}|{user_id} 进入了聊天室", conn)
+            conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n📊 房间状态: {'🟢 开放' if self.room_status else '🔴 关闭'} (码:{self.room_status})\n{self.list_users()}\n".encode("utf-8"))
+
+            # ---- 主循环 ----
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                msg = data.decode("utf-8").strip()
+                if not msg:
+                    continue
+
+                # 解析命令
+                if msg.startswith("/"):
+                    parts = msg.split(maxsplit=1)
+                    cmd = parts[0].lower()
+
+                    if cmd == "/quit" or cmd == "/exit":
+                        conn.sendall("👋 再见！正在断开连接...\n".encode("utf-8"))
+                        break
+
+                    elif cmd == "/help":
+                        help_text = (
+                            "\n========== 命令帮助 ==========\n"
+                            "/help          — 显示本帮助\n"
+                            "/list          — 查看在线用户\n"
+                            "/quit 或 /exit — 退出聊天室\n"
+                            "/to <昵称> <消息> — 私聊某人\n"
+                            "直接输入文字 — 群聊\n"
+                            "==============================\n"
+                        )
+                        conn.sendall(help_text.encode("utf-8"))
+
+                    elif cmd == "/list":
+                        conn.sendall((self.list_users() + "\n").encode("utf-8"))
+
+                    elif cmd == "/to" and len(parts) > 1:
+                        # /to 昵称 消息
+                        rest = parts[1]
+                        space_idx = rest.find(" ")
+                        if space_idx == -1:
+                            conn.sendall("❌ 格式: /to <昵称> <消息>\n".encode("utf-8"))
+                        else:
+                            target = rest[:space_idx]
+                            content = rest[space_idx + 1:].strip()
+                            if not content:
+                                conn.sendall("❌ 消息不能为空\n".encode("utf-8"))
+                            else:
+                                success = self.send_to(target, f"💬 [私聊]({nickname}): {content}\n")
+                                if success:
+                                    conn.sendall(f"💬 [私聊](你 → {target}): {content}\n".encode("utf-8"))
+                                else:
+                                    conn.sendall(f"❌ 用户 \"{target}\" 不在线或不存在\n".encode("utf-8"))
+                    else:
+                        conn.sendall(f"❌ 未知命令 \"{cmd}\"。输入 /help 查看帮助\n".encode("utf-8"))
+                else:
+                    # 群聊消息
+                    self.broadcast(f"💬 [{nickname}]: {msg}\n", conn)
+
+        except (ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+        finally:
+            # ---- 清理 ----
+            with self.lock:
+                if conn in self.clients:
+                    del self.clients[conn]
+                if conn in self.user_ids:
+                    del self.user_ids[conn]
+                if conn == self.host_conn:
+                    self.host_conn = None  # 房主离开，重置
+            if nickname and user_id:
+                self.broadcast(f"🔴 {nickname}|{user_id} 离开了聊天室\n")
             try:
-                conn.sendall("🔴 房间已关闭\n".encode("utf-8"))
                 conn.close()
             except:
                 pass
-        clients.clear()
-        host_conn = None
-        user_ids.clear()
+            print(f"[断开] {addr} — {nickname or '未知'}")
 
+    def broadcast_discovery(self):
+        """启动 UDP 广播线程，让客户端发现此服务器"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-def send_to(target_nick: str, message: str):
-    """私聊发送"""
-    with lock:
-        for conn, nick in clients.items():
-            if nick == target_nick:
-                try:
-                    conn.sendall(message.encode("utf-8"))
-                    return True
-                except:
-                    return False
-    return False
-
-
-def list_users() -> str:
-    """返回在线用户列表字符串（带隐藏 ID 供客户端追踪）"""
-    with lock:
-        items = []
-        for conn, nick in clients.items():
-            uid = user_ids.get(conn, 0)
-            if conn == host_conn:
-                items.append(f"👑{nick}|{uid}")
-            else:
-                items.append(f"{nick}|{uid}")
-    return "当前在线: " + ", ".join(items) if items else "当前没有其他在线用户"
-
-
-def handle_client(conn: socket.socket, addr):
-    """处理单个客户端通信"""
-    global host_conn, next_user_id, room_status
-    nickname = None
-    user_id = None
-    try:
-        # ---- 检查房间状态（房主自连允许通过） ----
-        if room_status == 0 and addr[0] != "127.0.0.1":
-            conn.sendall("🔴 房间已关闭或尚未开放\n".encode("utf-8"))
-            conn.close()
-            return
-
-        # ---- 欢迎 & 登录 ----
-        conn.sendall(f"🟢 欢迎来到「{room_name}」！(房间号: {room_id})\n请输入你的昵称: ".encode("utf-8"))
-        nickname = conn.recv(1024).decode("utf-8").strip()
-        if not nickname:
-            nickname = f"用户{addr[1]}"
-
-        with lock:
-            # 分配唯一 ID
-            user_id = next_user_id
-            next_user_id += 1
-            clients[conn] = nickname
-            user_ids[conn] = user_id
-            # 第一个连接的用户设为房主
-            if host_conn is None:
-                host_conn = conn
-        broadcast(f"📢 {nickname}|{user_id} 进入了聊天室", conn)
-        conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n📊 房间状态: {'🟢 开放' if room_status else '🔴 关闭'} (码:{room_status})\n{list_users()}\n".encode("utf-8"))
-
-        # ---- 主循环 ----
         while True:
-            data = conn.recv(4096)
-            if not data:
-                break
-            msg = data.decode("utf-8").strip()
-            if not msg:
-                continue
-
-            # 解析命令
-            if msg.startswith("/"):
-                parts = msg.split(maxsplit=1)
-                cmd = parts[0].lower()
-
-                if cmd == "/quit" or cmd == "/exit":
-                    conn.sendall("👋 再见！正在断开连接...\n".encode("utf-8"))
-                    break
-
-                elif cmd == "/help":
-                    help_text = (
-                        "\n========== 命令帮助 ==========\n"
-                        "/help          — 显示本帮助\n"
-                        "/list          — 查看在线用户\n"
-                        "/quit 或 /exit — 退出聊天室\n"
-                        "/to <昵称> <消息> — 私聊某人\n"
-                        "直接输入文字 — 群聊\n"
-                        "==============================\n"
-                    )
-                    conn.sendall(help_text.encode("utf-8"))
-
-                elif cmd == "/list":
-                    conn.sendall((list_users() + "\n").encode("utf-8"))
-
-                elif cmd == "/to" and len(parts) > 1:
-                    # /to 昵称 消息
-                    rest = parts[1]
-                    space_idx = rest.find(" ")
-                    if space_idx == -1:
-                        conn.sendall("❌ 格式: /to <昵称> <消息>\n".encode("utf-8"))
-                    else:
-                        target = rest[:space_idx]
-                        content = rest[space_idx + 1:].strip()
-                        if not content:
-                            conn.sendall("❌ 消息不能为空\n".encode("utf-8"))
-                        else:
-                            success = send_to(target, f"💬 [私聊]({nickname}): {content}\n")
-                            if success:
-                                conn.sendall(f"💬 [私聊](你 → {target}): {content}\n".encode("utf-8"))
-                            else:
-                                conn.sendall(f"❌ 用户 \"{target}\" 不在线或不存在\n".encode("utf-8"))
-                else:
-                    conn.sendall(f"❌ 未知命令 \"{cmd}\"。输入 /help 查看帮助\n".encode("utf-8"))
-            else:
-                # 群聊消息
-                broadcast(f"💬 [{nickname}]: {msg}\n", conn)
-
-    except (ConnectionResetError, ConnectionAbortedError, OSError):
-        pass
-    finally:
-        # ---- 清理 ----
-        with lock:
-            if conn in clients:
-                del clients[conn]
-            if conn in user_ids:
-                del user_ids[conn]
-            if conn == host_conn:
-                host_conn = None  # 房主离开，重置
-        if nickname and user_id:
-            broadcast(f"🔴 {nickname}|{user_id} 离开了聊天室\n")
-        try:
-            conn.close()
-        except:
-            pass
-        print(f"[断开] {addr} — {nickname or '未知'}")
-
-
-def broadcast_discovery():
-    """启动 UDP 广播线程，让客户端发现此服务器"""
-    global room_status
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-    while True:
-        try:
-            if room_status == 1:
-                msg = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|1|{room_id}".encode("utf-8")
-                sock.sendto(msg, (BROADCAST_ADDRESS, DISCOVERY_PORT))
-                sock.sendto(msg, ("127.0.0.1", DISCOVERY_PORT))
-                if LOCAL_IP != "127.0.0.1":
-                    sock.sendto(msg, (LOCAL_IP, DISCOVERY_PORT))
-            time.sleep(2)
-        except Exception as e:
-            print(f"[广播错误] {e}")
-            time.sleep(2)
-
-
-def start_server():
-    """启动服务端"""
-    global server_running, room_status, room_id
-    server_running = True
-    room_status = 0  # 默认关闭，房主进入聊天后才开放
-    room_id = f"RM{int(time.time())}{random.randint(100, 999)}"
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((HOST, PORT))
-    server.listen(10)
-    server.settimeout(1)  # 1秒超时，让 accept() 可被 Ctrl+C 中断
-    print(f"🚀 聊天室服务端已启动！")
-    print(f"   房间名称: {room_name}")
-    print(f"   本机 IP: {LOCAL_IP}")
-    print(f"   监听端口: {PORT}")
-    print(f"   广播端口: {DISCOVERY_PORT}")
-    print(f"   等待客户端连接...\n")
-
-    # 启动广播发现线程
-    discovery_thread = threading.Thread(target=broadcast_discovery, daemon=True)
-    discovery_thread.start()
-    print(f"📡 房间广播已启动，客户端可以搜索到此房间\n")
-
-    try:
-        while server_running:
             try:
-                conn, addr = server.accept()
-            except socket.timeout:
-                continue  # 超时重试，让 KeyboardInterrupt 有机会被捕获
-            print(f"[新连接] {addr}")
-            t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
-            t.start()
-    except KeyboardInterrupt:
-        print("\n🛑 服务端关闭中...")
-    finally:
-        close_room()
-        server.close()
-        print("✅ 服务端已关闭")
+                if self.room_status == 1:
+                    msg = f"CHAT_ROOM|{self.room_name}|{self.LOCAL_IP}|{self.PORT}|1|{self.room_id}".encode("utf-8")
+                    sock.sendto(msg, (self.BROADCAST_ADDRESS, self.DISCOVERY_PORT))
+                    sock.sendto(msg, ("127.0.0.1", self.DISCOVERY_PORT))
+                    if self.LOCAL_IP != "127.0.0.1":
+                        sock.sendto(msg, (self.LOCAL_IP, self.DISCOVERY_PORT))
+                time.sleep(2)
+            except Exception as e:
+                print(f"[广播错误] {e}")
+                time.sleep(2)
+
+    def start_server(self):
+        """启动服务端"""
+        self.server_running = True
+        self.room_status = 0  # 默认关闭，房主进入聊天后才开放
+        self.room_id = f"RM{int(time.time())}{random.randint(100, 999)}"
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.HOST, self.PORT))
+        server.listen(10)
+        server.settimeout(1)  # 1秒超时，让 accept() 可被 Ctrl+C 中断
+        print(f"🚀 聊天室服务端已启动！")
+        print(f"   房间名称: {self.room_name}")
+        print(f"   本机 IP: {self.LOCAL_IP}")
+        print(f"   监听端口: {self.PORT}")
+        print(f"   广播端口: {self.DISCOVERY_PORT}")
+        print(f"   等待客户端连接...\n")
+
+        # 启动广播发现线程
+        discovery_thread = threading.Thread(target=self.broadcast_discovery, daemon=True)
+        discovery_thread.start()
+        print(f"📡 房间广播已启动，客户端可以搜索到此房间\n")
+
+        try:
+            while self.server_running:
+                try:
+                    conn, addr = server.accept()
+                except socket.timeout:
+                    continue  # 超时重试，让 KeyboardInterrupt 有机会被捕获
+                print(f"[新连接] {addr}")
+                t = threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True)
+                t.start()
+        except KeyboardInterrupt:
+            print("\n🛑 服务端关闭中...")
+        finally:
+            self.close_room()
+            server.close()
+            print("✅ 服务端已关闭")
 
 
+# ========== 兼容旧式直接运行 ==========
 if __name__ == "__main__":
-    start_server()
+    import sys
+    port = 8888
+    name = "聊天室"
+    if len(sys.argv) >= 2:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            name = sys.argv[1]
+    if len(sys.argv) >= 3:
+        try:
+            port = int(sys.argv[2])
+        except ValueError:
+            pass
+    ChatServer(port=port, room_name=name).start_server()

@@ -156,21 +156,19 @@ class InitialInterface:
             if p.isdigit():
                 port = int(p)
 
-        # 1. 启动服务端线程（设置房间名称）
-        import importlib
-        _srv = importlib.import_module("tcp_chat.server")
-        _srv.PORT = port
-        _srv.room_name = room_name
-        _srv.server_running = True
-        _srv.room_status = 0
-        threading.Thread(target=_srv.start_server, daemon=True).start()
+        # 1. 创建独立的 ChatServer 实例并启动
+        from ..server import ChatServer
+        server = ChatServer(port=port, room_name=room_name)
+        server.server_running = True
+        server.room_status = 0
+        threading.Thread(target=server.start_server, daemon=True).start()
 
         # 2. 传递隧道给控制器（不再由本界面管理）
         tunnel = self._tunnel
         self._tunnel = None  # 阻止 close() 误关
 
-        # 3. 通知控制器（控制器会启动自动连接）
-        self.controller.on_room_created(nick, "127.0.0.1", port, tunnel)
+        # 3. 通知控制器（控制器会启动自动连接，同时传入 server 实例）
+        self.controller.on_room_created(nick, "127.0.0.1", port, tunnel, server)
 
         # 4. 关闭初始界面
         self.close()
