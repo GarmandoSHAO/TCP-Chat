@@ -216,7 +216,7 @@ class ChatClientUI:
         self._show_loading("🚀 正在启动房间...")
         self._auto_connect("127.0.0.1", port, nick)
 
-    def _start_tunnel(self, port):
+    def _start_tunnel(self, port, retries=2):
         """自动启动 bore 隧道（静默，失败不阻塞）"""
         # 确保旧服务端和旧隧道已停
         try:
@@ -239,12 +239,17 @@ class ChatClientUI:
             return
         print(f"[tunnel] ✅ 找到 {type(tunnel).__name__}")
 
-        def _run():
-            print("[tunnel] 正在连接 bore.pub...")
+        def _run(attempt=0):
+            print(f"[tunnel] 正在连接 bore.pub... (第{attempt+1}次)")
             ok, msg = tunnel.start()
             print(f"[tunnel] 连接结果: ok={ok}, msg={msg}")
             if ok:
                 self.root.after(0, lambda a=msg: self._finish_tunnel(a))
+            elif attempt < retries:
+                print(f"[tunnel] 重试...")
+                import time
+                time.sleep(1)
+                _run(attempt + 1)
             else:
                 print("[tunnel] ❌ 隧道失败")
 
