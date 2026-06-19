@@ -35,8 +35,8 @@ lock = threading.Lock()
 room_name = "聊天室"               # 房间名称
 host_conn = None                    # 房主连接
 next_user_id = 1                   # 自增用户 ID
-server_running = True              # 服务端运行标志
 user_ids = {}                       # {conn: user_id}
+room_status = 1                     # 1=开放, 0=关闭
 
 
 def broadcast(message: str, sender_conn=None):
@@ -48,6 +48,22 @@ def broadcast(message: str, sender_conn=None):
                     conn.sendall(message.encode("utf-8"))
                 except:
                     pass
+
+
+def close_room():
+    """关闭房间：踢出所有成员，标记状态为 0"""
+    global room_status, clients, host_conn, user_ids
+    room_status = 0
+    with lock:
+        for conn in list(clients.keys()):
+            try:
+                conn.sendall("🔴 房间已关闭\n".encode("utf-8"))
+                conn.close()
+            except:
+                pass
+        clients.clear()
+        host_conn = None
+        user_ids.clear()
 
 
 def send_to(target_nick: str, message: str):
@@ -213,20 +229,19 @@ def start_server():
     discovery_thread.start()
     print(f"📡 房间广播已启动，客户端可以搜索到此房间\n")
 
-    global server_running
     try:
         while server_running:
             try:
                 conn, addr = server.accept()
             except socket.timeout:
-                continue
+                continue  # 超时重试，让 KeyboardInterrupt 有机会被捕获
             print(f"[新连接] {addr}")
             t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             t.start()
     except KeyboardInterrupt:
         print("\n🛑 服务端关闭中...")
     finally:
-        server_running = False
+        close_room()
         server.close()
         print("✅ 服务端已关闭")
 
