@@ -226,6 +226,18 @@ class ChatClientUI:
             _srv.room_status = 0
         except Exception:
             pass
+        # 等待旧服务端端口完全释放
+        import socket as _sk
+        for _ in range(10):
+            try:
+                _s = _sk.socket()
+                _s.settimeout(0.3)
+                _s.connect(('127.0.0.1', port))
+                _s.close()
+                import time
+                time.sleep(0.3)
+            except:
+                break
         if hasattr(self, '_tunnel') and self._tunnel:
             try:
                 self._tunnel.stop()
