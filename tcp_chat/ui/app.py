@@ -305,6 +305,11 @@ class ChatClientUI:
     def _connect_thread(self, host, port, nick):
         try:
             sock, welcome, login_result = connect_server(host, port, nick)
+            import re as _re
+            _m = _re.search(r'房间状态:.*?\(码:(\d+)\)', login_result)
+            if _m:
+                _s = '开放' if _m.group(1) == '1' else '关闭'
+                print(f'[房间] 状态码: {_m.group(1)} ({_s})')
             self.sock = sock
             self.connected = True
             self.msg_queue.put(("CONNECTED", (welcome, login_result)))

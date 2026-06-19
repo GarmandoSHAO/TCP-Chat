@@ -121,7 +121,7 @@ def handle_client(conn: socket.socket, addr):
             if host_conn is None:
                 host_conn = conn
         broadcast(f"📢 {nickname}|{user_id} 进入了聊天室", conn)
-        conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n{list_users()}\n".encode("utf-8"))
+        conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n📊 房间状态: {'🟢 开放' if room_status else '🔴 关闭'} (码:{room_status})\n{list_users()}\n".encode("utf-8"))
 
         # ---- 主循环 ----
         while True:
