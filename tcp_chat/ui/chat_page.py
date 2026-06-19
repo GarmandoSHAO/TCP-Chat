@@ -1,173 +1,12 @@
 """
-页面视图 — 启动页、创建房间页、登录页、聊天页
+聊天页 — 顶栏 + 消息区 + 用户面板 + 输入区
 """
 import tkinter as tk
 import customtkinter as ctk
 from .theme import *
-from .widgets import win_btn, make_draggable
-from ..config import get, get_local_ip
-
-
-# ======================== 启动页 ========================
-
-def build_start_view(container, on_create, on_join):
-    """启动界面：两个大按钮"""
-    frame = ctk.CTkFrame(container, fg_color=WHITE)
-    frame.pack(fill="both", expand=True)
-
-    ctk.CTkLabel(frame, text="💬", font=("Segoe UI", 48),
-                 bg_color=WHITE).pack(pady=(50, 0))
-    ctk.CTkLabel(frame, text="TCP 聊天室",
-                 font=("Segoe UI", 24, "bold"),
-                 text_color=CHAT_TITLE,
-                 bg_color=WHITE).pack(pady=(6, 4))
-    ctk.CTkLabel(frame, text="", bg_color=WHITE).pack(pady=(0, 40))
-
-    ctk.CTkButton(frame, text="🏠  创建聊天房间",
-                   font=("Segoe UI", 14, "bold"),
-                   width=220, height=44, corner_radius=10,
-                   fg_color=CHAT_TITLE, hover_color="#054d44",
-                   command=on_create).pack(pady=5)
-    ctk.CTkButton(frame, text="🔍  加入聊天房间",
-                   font=("Segoe UI", 14, "bold"),
-                   width=220, height=44, corner_radius=10,
-                   fg_color=WHITE, text_color=CHAT_TITLE,
-                   hover_color="#e8f5e9", border_width=2,
-                   border_color=CHAT_TITLE,
-                   command=on_join).pack(pady=5)
-    return frame
-
-
-# ======================== 创建房间配置页 ========================
-
-def build_create_room_view(container, on_create, on_back):
-    """创建房间配置页：IP、端口、房间名、昵称"""
-    frame = ctk.CTkFrame(container, fg_color=WHITE)
-    frame.pack(fill="both", expand=True)
-
-    local_ip = get_local_ip()
-    ctk.CTkLabel(frame, text="🏠", font=("Segoe UI", 36),
-                 bg_color=WHITE).pack(pady=(28, 0))
-    ctk.CTkLabel(frame, text="创建聊天房间",
-                 font=("Segoe UI", 18, "bold"),
-                 text_color=CHAT_TITLE,
-                 bg_color=WHITE).pack(pady=(4, 16))
-
-    form = ctk.CTkFrame(frame, fg_color=WHITE)
-    form.pack(padx=40)
-
-    entries = {}
-    fields = [
-        ("局域网IP:端口", f"{local_ip}:{get('default_port', 8888)}", 24),
-        ("外网IP", "正在建造隧道...", 24, True),
-        ("房间名称", get("default_room_name", "聊天室"), 20),
-        ("昵称", get("default_nickname", "用户"), 20),
-    ]
-    for item in fields:
-        label, default, width = item[0], item[1], item[2]
-        placeholder = item[3] if len(item) > 3 else False
-        row = ctk.CTkFrame(form, fg_color="transparent")
-        row.pack(fill="x", pady=4)
-        ctk.CTkLabel(row, text=label, width=65, anchor="e",
-                     font=("Segoe UI", 11),
-                     bg_color=WHITE).pack(side="left", padx=(0, 8))
-        entry = ctk.CTkEntry(row, font=("Segoe UI", 12),
-                              width=width * 8, height=30, corner_radius=6)
-        entry.insert(0, default)
-        if placeholder:
-            entry.configure(text_color="#aaaaaa")
-        entry.pack(side="left")
-        entries[label] = entry
-
-    ctk.CTkButton(frame, text="🚀  创建",
-                   font=("Segoe UI", 13, "bold"),
-                   width=200, height=38, corner_radius=8,
-                   fg_color=CHAT_TITLE,
-                   command=on_create).pack(pady=(12, 4))
-    ctk.CTkButton(frame, text="←  返回",
-                   font=("Segoe UI", 11),
-                   width=200, height=30, corner_radius=8,
-                   fg_color=WHITE, text_color="#888888",
-                   hover_color="#f0f0f0",
-                   command=on_back).pack(pady=2)
-    return frame, entries
-
-
-# ======================== 登录页 ========================
-
-def build_login_view(container, fields_config, on_connect):
-    """登录界面：服务器地址、端口、昵称 + 连接按钮"""
-    frame = ctk.CTkFrame(container, fg_color=WHITE)
-    frame.pack(fill="both", expand=True)
-
-    body = ctk.CTkFrame(frame, fg_color=WHITE)
-    body.pack(fill="both", expand=True)
-
-    ctk.CTkFrame(body, fg_color=WHITE, height=60).pack(fill="x", side="top")
-
-    center = ctk.CTkFrame(body, fg_color=WHITE)
-    center.pack(expand=True)
-
-    ctk.CTkLabel(center, text="💬", font=("Segoe UI", 40),
-                 bg_color=WHITE).pack()
-    ctk.CTkLabel(center, text="TCP 聊天室", font=("Segoe UI", 22, "bold"),
-                 text_color="#1a1a1a", bg_color=WHITE).pack(pady=(8, 2))
-    ctk.CTkLabel(center, text="连接到聊天服务器",
-                 font=("Segoe UI", 11),
-                 text_color="#888888", bg_color=WHITE).pack(pady=(0, 20))
-
-    form = ctk.CTkFrame(center, fg_color=WHITE)
-    form.pack(padx=40, pady=(0, 16))
-
-    entries = {}
-    for label, default, width in fields_config:
-        row = ctk.CTkFrame(form, fg_color="transparent")
-        row.pack(fill="x", pady=5)
-        ctk.CTkLabel(row, text=label, width=75, anchor="e",
-                     font=("Segoe UI", 11),
-                     text_color=("#555555", "#cccccc")).pack(side="left", padx=(0, 10))
-        entry_frame = ctk.CTkFrame(row, fg_color=("#e8e8e8", "#333333"),
-                                   corner_radius=CR, height=32)
-        entry_frame.pack(side="left", fill="x", expand=True)
-        entry_frame.pack_propagate(False)
-        entry = tk.Entry(entry_frame, font=("Segoe UI", 12),
-                         bd=0, highlightthickness=0,
-                         bg="#e8e8e8", fg="#000000",
-                         insertbackground="#000000", relief="flat")
-        entry.insert(0, default)
-        entry.pack(fill="both", expand=True, padx=8, pady=2)
-        entries[label] = entry
-        entry.bind("<Return>", lambda e: on_connect())
-
-    # 按钮行
-    btn_row = ctk.CTkFrame(center, fg_color=WHITE)
-    btn_row.pack(pady=(6, 12))
-
-    scan_btn = ctk.CTkButton(btn_row, text="🔍 扫描局域网",
-                              font=("Segoe UI", 11), width=130, height=34,
-                              corner_radius=CR,
-                              fg_color=("#e8e8e8", "#333333"),
-                              text_color=("#333333", "#ffffff"),
-                              hover_color=("#d0d0d0", "#444444"))
-    scan_btn.pack(side="left", padx=(0, 10))
-
-    connect_btn = ctk.CTkButton(btn_row, text="🚀 连接",
-                                 font=("Segoe UI", 12, "bold"),
-                                 width=120, height=34,
-                                 corner_radius=CR)
-    connect_btn.pack(side="left")
-
-    status = ctk.CTkLabel(center, text="", font=("Segoe UI", 10),
-                          text_color=ERROR_FG)
-    status.pack(pady=(0, 20))
-
-    return frame, entries, scan_btn, connect_btn, status
-
-
-# ======================== 聊天页 ========================
 
 def build_chat_view(container, on_send, on_disconnect):
-    """聊天主界面：顶栏 + 消息区 + 用户面板 + 输入区"""
+    """聊天主界面：顶栏、消息区、用户面板、输入区"""
     frame = ctk.CTkFrame(container, fg_color="transparent")
     frame.pack(fill="both", expand=True)
 
@@ -187,7 +26,6 @@ def build_chat_view(container, on_send, on_disconnect):
                                 corner_radius=6,
                                 cursor="hand2")
     title_label.pack(side="left", padx=6)
-    # 悬停变色（不改变尺寸的属性，避免偏移）
     title_label.bind("<Enter>", lambda e: title_label.configure(
         fg_color="#e8f5e9"))
     title_label.bind("<Leave>", lambda e: title_label.configure(
@@ -216,7 +54,6 @@ def build_chat_view(container, on_send, on_disconnect):
                        highlightthickness=0)
     msg_text.grid(row=0, column=0, sticky="nsew")
 
-    # 配置标签
     for name, (fg, font) in [
         ("system", (SYSTEM_FG, ("Segoe UI", 9, "italic"))),
         ("private", (PRIVATE_FG, ("Segoe UI", 10))),
@@ -265,7 +102,6 @@ def build_chat_view(container, on_send, on_disconnect):
     user_frame.pack(side="right", fill="y")
     user_frame.pack_propagate(False)
 
-    # 用户列表标题
     ctk.CTkLabel(user_frame, text="🟢 在线用户",
                  font=("Segoe UI", 12, "bold"),
                  text_color=CHAT_TITLE, bg_color=WHITE).pack(
@@ -275,7 +111,6 @@ def build_chat_view(container, on_send, on_disconnect):
                                text_color="#999999", bg_color=WHITE)
     user_count.pack(anchor="w", padx=14)
 
-    # Canvas 滚动用户列表
     list_container = ctk.CTkFrame(user_frame, fg_color="transparent")
     list_container.pack(fill="both", expand=True, padx=6, pady=(6, 6))
     list_container.grid_rowconfigure(0, weight=1)

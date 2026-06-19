@@ -15,12 +15,10 @@ from ..config import get, get_local_ip
 from ..client import connect_server, start_receive, scan_network
 from .theme import *
 from .widgets import make_draggable
-from .pages import (
-    build_start_view,
-    build_create_room_view,
-    build_login_view,
-    build_chat_view,
-)
+from .start_page import build_start_view
+from .create_room_page import build_create_room_view
+from .login_page import build_login_view
+from .chat_page import build_chat_view
 
 ctk.set_appearance_mode(get("appearance", "light"))
 ctk.set_default_color_theme(get("theme", "green"))

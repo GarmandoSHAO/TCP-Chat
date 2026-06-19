@@ -14,6 +14,8 @@
 6. [类型注解](#6-类型注解)
 7. [测试](#7-测试)
 8. [依赖管理](#8-依赖管理)
+9. [其他实用技巧](#9-其他实用技巧)
+10. [智能体工作流程](#10-智能体工作流程)
 
 ---
 
@@ -78,14 +80,11 @@ flake8 scripts/ --max-line-length=100
 
 ### 2.1 breakpoint() — 最快上手
 
-在代码里插入：
 ```python
 def handle_client(conn):
     breakpoint()  # 程序执行到这里会进入 pdb
     data = conn.recv(1024)
 ```
-
-运行脚本，会自动进入交互式调试器。
 
 ### 2.2 pdb 命令行调试
 
@@ -193,14 +192,13 @@ def main():
     parser.add_argument("--port", type=int, default=8888, help="服务器端口")
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
     args = parser.parse_args()
-    # ...
     print(f"连接到 {args.host}:{args.port}...")
 
 if __name__ == "__main__":
     main()
 ```
 
-### 3.3 FastAPI 模板（适用 HTTP API 场景）
+### 3.3 FastAPI 模板（适用 WebSocket 场景）
 
 ```python
 from fastapi import FastAPI, WebSocket
@@ -242,12 +240,10 @@ async def websocket_endpoint(websocket: WebSocket):
 ### 4.2 上下文管理器（with 语句）
 
 ```python
-# socket 示例
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((host, port))
     s.sendall(data)
 
-# 自定义上下文管理器
 class ManagedSocket:
     def __init__(self):
         self.sock = socket.socket()
@@ -268,40 +264,35 @@ except ConnectionResetError:
     print("客户端断开连接")
 except Exception as e:
     print(f"未知错误: {e}")
-    raise  # 或记录日志后重新抛出
+    raise
 else:
-    print("数据接收成功")  # 无异常时执行
+    print("数据接收成功")
 finally:
-    conn.close()  # 无论如何都会执行
+    conn.close()
 ```
 
 ### 4.4 日志优先于 print
 
 ```python
 import logging
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
 logger.info("服务器启动于 %s:%d", host, port)
-logger.debug("收到数据: %r", data)
-logger.error("连接异常: %s", exc, exc_info=True)
 ```
 
 ### 4.5 类型注解
 
 ```python
-from typing import Optional, Callable, Awaitable
+from typing import Optional, Callable
 
 def send_message(sock: socket.socket, data: bytes) -> int:
     return sock.send(data)
 
 def recv_exact(sock: socket.socket, size: int) -> Optional[bytes]:
-    """接收精确数量的字节，不够则返回 None"""
     buf = b""
     while len(buf) < size:
         chunk = sock.recv(size - len(buf))
@@ -309,10 +300,6 @@ def recv_exact(sock: socket.socket, size: int) -> Optional[bytes]:
             return None
         buf += chunk
     return buf
-
-Handler = Callable[[bytes], Optional[bytes]]
-async def serve_forever(handler: Handler) -> None:
-    ...
 ```
 
 ### 4.6 枚举替代魔数
@@ -325,11 +312,6 @@ class MessageType(IntEnum):
     FILE = 2
     HEARTBEAT = 3
     DISCONNECT = 4
-
-class Packet:
-    def __init__(self, msg_type: MessageType, payload: bytes):
-        self.msg_type = msg_type
-        self.payload = payload
 ```
 
 ---
@@ -343,133 +325,59 @@ import socket
 import threading
 
 def handle_client(conn: socket.socket, addr):
-    """处理单个客户端连接"""
     try:
         while True:
             data = conn.recv(1024)
             if not data:
-                break  # 客户端断开
+                break
             print(f"[{addr}] {data.decode()}")
             conn.sendall(b"ACK: " + data)
     except ConnectionResetError:
         print(f"[{addr}] 连接重置")
     finally:
         conn.close()
-        print(f"[{addr}] 连接已关闭")
 
-def start_server(host: str = "127.0.0.1", port: int = 8888):
+def start_server(host="127.0.0.1", port=8888):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((host, port))
     server.listen(5)
-    print(f"服务器监听 {host}:{port}")
-
     try:
         while True:
             conn, addr = server.accept()
-            print(f"新连接: {addr}")
-            thread = threading.Thread(target=handle_client, args=(conn, addr))
-            thread.daemon = True
-            thread.start()
+            t = threading.Thread(target=handle_client, args=(conn, addr))
+            t.daemon = True
+            t.start()
     except KeyboardInterrupt:
         print("服务器关闭")
     finally:
         server.close()
 ```
 
-### 5.2 基础 TCP 客户端
-
-```python
-import socket
-
-def start_client(host: str = "127.0.0.1", port: int = 8888):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        s.settimeout(5.0)
-
-        while True:
-            msg = input("> ")
-            if msg.lower() in ("quit", "exit"):
-                break
-            s.sendall(msg.encode())
-            try:
-                response = s.recv(1024)
-                print(f"服务器: {response.decode()}")
-            except socket.timeout:
-                print("响应超时")
-```
-
-### 5.3 Socket 选项
-
-| 选项 | 作用 | 用法 |
-|------|------|------|
-| `SO_REUSEADDR` | 允许重用地址（快速重启） | `s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)` |
-| `TCP_NODELAY` | 禁用 Nagle 算法（低延迟） | `s.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)` |
-| `SO_KEEPALIVE` | 心跳保活 | `s.setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)` |
-| `settimeout()` | 设置 I/O 超时 | `s.settimeout(5.0)` |
-| `setblocking()` | 设置阻塞/非阻塞 | `s.setblocking(False)` |
-
-### 5.4 粘包处理
-
-TCP 是流协议，多条消息可能粘在一起：
+### 5.2 粘包处理
 
 ```python
 import struct
 
 def send_msg(sock: socket.socket, data: bytes):
-    """发送带长度前缀的消息"""
-    length = struct.pack("!I", len(data))  # 4字节大端长度
+    length = struct.pack("!I", len(data))
     sock.sendall(length + data)
 
 def recv_msg(sock: socket.socket) -> Optional[bytes]:
-    """接收带长度前缀的消息"""
-    header = recv_exact(sock, 4)  # 先读4字节长度
+    header = recv_exact(sock, 4)
     if header is None:
         return None
     length = struct.unpack("!I", header)[0]
     return recv_exact(sock, length)
 ```
 
-### 5.5 selectors 多路复用（替代多线程）
-
-```python
-import selectors
-import socket
-
-sel = selectors.DefaultSelector()
-
-def accept(sock):
-    conn, addr = sock.accept()
-    conn.setblocking(False)
-    sel.register(conn, selectors.EVENT_READ, read)
-
-def read(conn):
-    data = conn.recv(1024)
-    if data:
-        conn.sendall(data)
-    else:
-        sel.unregister(conn)
-        conn.close()
-
-server = socket.socket()
-server.bind(("127.0.0.1", 8888))
-server.listen(5)
-server.setblocking(False)
-sel.register(server, selectors.EVENT_READ, accept)
-
-while True:
-    for key, _ in sel.select():
-        key.data(key.fileobj)
-```
-
-### 5.6 asyncio 异步版本
+### 5.3 asyncio 异步版本
 
 ```python
 import asyncio
 
-async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
-    print(f"新连接: {addr}")
     try:
         while True:
             data = await reader.read(1024)
@@ -477,8 +385,6 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 break
             writer.write(b"ACK: " + data)
             await writer.drain()
-    except ConnectionResetError:
-        pass
     finally:
         writer.close()
         await writer.wait_closed()
@@ -491,6 +397,23 @@ async def main():
 asyncio.run(main())
 ```
 
+### 5.4 Socket 选项速查
+
+| 选项 | 作用 |
+|------|------|
+| `SO_REUSEADDR` | 允许快速重启，避免 Address already in use |
+| `TCP_NODELAY` | 禁用 Nagle 算法，降低延迟 |
+| `SO_KEEPALIVE` | 心跳保活检测断线 |
+| `settimeout(5.0)` | 设置 I/O 超时 |
+| `setblocking(False)` | 切换非阻塞模式 |
+
+### 5.5 安全注意事项
+
+- 不要用 `eval()` 或 `exec()` 处理用户输入
+- socket 接收要设置超时，避免死等
+- 用户数据要限长，防内存溢出
+- 生产环境用 `ssl.wrap_socket()` 加密传输
+
 ---
 
 ## 6. 类型注解
@@ -499,39 +422,28 @@ asyncio.run(main())
 
 ```python
 from typing import List, Dict, Tuple, Set, Optional, Any, Union
-
 names: List[str] = ["Alice", "Bob"]
 scores: Dict[str, int] = {"Alice": 100}
-point: Tuple[float, float] = (1.0, 2.0)
-maybe: Optional[str] = None  # str | None
-anything: Any = 42
-id_or_name: Union[int, str] = 123  # int | str (Python 3.10+)
+maybe: Optional[str] = None
 ```
 
 ### 6.2 Python 3.10+ 新语法
 
 ```python
-# Python 3.10+
 maybe: str | None = None
 id_or_name: int | str = 123
-
-# Python 3.12+ 更简洁
-type Handler = Callable[[bytes], bytes | None]
 ```
 
-### 6.3 协议/接口（Protocol）
+### 6.3 Protocol（鸭子类型检查）
 
 ```python
 from typing import Protocol
 
 class MessageHandler(Protocol):
-    def handle(self, data: bytes) -> bytes:
-        ...
-    def on_close(self) -> None:
-        ...
+    def handle(self, data: bytes) -> bytes: ...
+    def on_close(self) -> None: ...
 
 def run_handler(h: MessageHandler):
-    # 任何实现了 handle 和 on_close 的对象都可以传入
     result = h.handle(b"hello")
 ```
 
@@ -551,7 +463,6 @@ import socket
 import pytest
 
 def test_send_recv():
-    """测试基本的发送接收"""
     with socket.socket() as s:
         s.connect(("127.0.0.1", 8888))
         s.sendall(b"hello")
@@ -560,7 +471,6 @@ def test_send_recv():
 
 @pytest.mark.asyncio
 async def test_async_connect():
-    """测试异步连接"""
     reader, writer = await asyncio.open_connection("127.0.0.1", 8888)
     writer.write(b"test")
     data = await reader.read(1024)
@@ -571,12 +481,11 @@ async def test_async_connect():
 ### 7.2 mock 测试
 
 ```python
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 def test_handle_client():
     mock_conn = Mock()
-    mock_conn.recv.side_effect = [b"hello", b""]  # 第二次返回空表示断开
-
+    mock_conn.recv.side_effect = [b"hello", b""]
     handle_client(mock_conn, ("127.0.0.1", 12345))
     assert mock_conn.sendall.called
     assert mock_conn.close.called
@@ -587,34 +496,11 @@ def test_handle_client():
 ## 8. 依赖管理
 
 ```bash
-# 生成依赖清单
 pip freeze > requirements.txt
-
-# 只保留顶层依赖
-pip install pip-tools
-pip-compile  # 生成 requirements.txt
 ```
 
-**requirements.txt 典型内容：**
-```
-# 项目依赖
-# 运行时
-# （TCP-Chat 是标准库项目，可能无需额外依赖）
-
-# 开发工具
-pytest>=8.0
-flake8>=7.0
-black>=24.0
-isort>=5.13
-debugpy>=1.8
-```
-
-**项目级 pyproject.toml：**
+**pyproject.toml：**
 ```toml
-[build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
-
 [project]
 name = "tcp-chat"
 version = "1.0.0"
@@ -635,21 +521,13 @@ testpaths = ["tests"]
 
 ## 9. 其他实用技巧
 
-### 9.1 编码规范
-
-- 所有源文件用 UTF-8 编码
-- 缩进用 4 个空格（不用 Tab）
-- 行长不超过 100 字符（本项目的约定）
-- 类定义之间空 2 行，方法之间空 1 行
-
-### 9.2 bytes 和 str 的区分
+### 9.1 bytes 和 str 的区分
 
 ```python
 # TCP 传出用 bytes
 conn.sendall(data.encode("utf-8"))     # str → bytes
 data.decode("utf-8")                   # bytes → str
 
-# 安全做法
 def safe_decode(data: bytes) -> str:
     try:
         return data.decode("utf-8")
@@ -657,22 +535,144 @@ def safe_decode(data: bytes) -> str:
         return data.decode("utf-8", errors="replace")
 ```
 
-### 9.3 并发模型选择
+### 9.2 并发模型选择
 
 | 模型 | 适用场景 | 优点 | 缺点 |
 |------|----------|------|------|
 | 多线程 threading | 少量长连接 | 简单直观 | GIL、线程开销 |
 | select / poll / epoll | 大量短连接 | 单线程高效 | 编码复杂 |
-| asyncio | 高并发 I/O | 现代 Python 风格 | 学习曲线 |
-| multiprocessing | CPU 密集型 | 避开 GIL | IPC 复杂 |
-
-### 9.4 安全注意事项
-
-- 不要用 `eval()` 或 `exec()` 处理用户输入
-- socket 接收要设置超时，避免死等
-- 用户数据要限长，防内存溢出
-- 生产环境用 `ssl.wrap_socket()` 加密传输
+| asyncio | 高并发 I/O | 现代 Python | 学习曲线 |
+| multiprocessing | CPU密集型 | 避开 GIL | IPC 复杂 |
 
 ---
 
-*本文件由小龙虾整理，整合了 OpenClaw 工作区 skills 中的 Python 知识，包括 lsp-python（代码质量）、python-debugpy（调试）、python-script-generator（项目模板），以及通用的 Python 网络编程最佳实践。*
+## 10. 智能体工作流程（Agent Workflow）
+
+本工作流定义了 AI 在 TCP-Chat 项目中与主人协作开发的完整规范。每次对话开始，AI 应遵循此流程。
+
+### 10.1 核心原则
+
+1. **先问再改** — 除非主人明确说"直接改"，否则改文件前先确认
+2. **小步提交** — 每个逻辑改动用独立的 commit，不要一锅端
+3. **改前看现状** — 改代码前先 `git status` 和 `git diff` 了解当前状态
+4. **别丢代码** — 任何修改前确认没有未提交的重要代码
+5. **改完就验证** — 改完后自动跑 `flake8` 或 `pytest` 检查有无破坏
+6. **按 CLAUDE.md 行事** — 本文件中的 Python 知识、编码规范、惯例都要遵守
+
+### 10.2 完整开发循环
+
+```
+主人提出需求
+    ↓
+① 理解意图 — 确认主人要什么
+    ↓
+② 看现状 — git status + git diff + 读相关文件
+    ↓
+③ 制定方案 — 简单描述怎么改
+    ↓
+④ 确认 — 问主人"这样改可以吗？"
+    ↓
+⑤ 执行修改 — 改代码（小步进行）
+    ↓
+⑥ 验证 — flake8 / pytest / 手动测
+    ↓
+⑦ 提交 — git add + git commit（附清晰信息）
+    ↓
+⑧ 推送 — git push（主人确认后）
+    ↓
+回到①
+```
+
+### 10.3 对话模式速查
+
+| 主人说的话 | 智能体应该怎么做 |
+|------------|----------------|
+| "帮我加个功能" | 按完整循环 ①→⑧ 执行 |
+| "帮我修个 bug" | 先复现问题，找到根因，再修 |
+| "看看这段代码" | 审阅代码，指出问题，给建议 |
+| "直接改" | 跳过④确认步，直接改 |
+| "帮我提交一下" | `git add .` + `git commit`，信息要写清楚改了啥 |
+| "帮我推上去" | 先确认有没有未提交修改，再 `git push` |
+| "回滚" | 找到对应 commit，`git revert` 或 `git reset` |
+| "审查一下" | 跑 flake8 + pylint + pytest，报告问题 |
+| "怎么这么慢" | 检查性能瓶颈，建议优化方案，确认后再改 |
+| "先别动，看看再说" | 只读不写，纯分析和建议 |
+
+### 10.4 Commit Message 规范
+
+```
+<类型>: <简短描述>
+
+<详细说明（可选）>
+```
+
+**类型：**
+- `feat` — 新功能
+- `fix` — 修 bug
+- `refactor` — 重构
+- `style` — 格式修改（不影响逻辑）
+- `docs` — 文档
+- `test` — 测试
+- `chore` — 杂项（依赖、配置等）
+
+**示例：**
+```
+feat: 添加消息长度前缀解决粘包问题
+
+改用 4 字节大端长度前缀 + 消息体的格式，
+确保收发双方不会因为 TCP 粘包而出错。
+```
+
+### 10.5 情境响应指南
+
+**情境 A：主人刚打开对话，还没说干什么**
+1. 先看 `git status` 看当前工作区状态
+2. 如果有未提交的修改，主动汇报
+3. 等待主人指令
+
+**情境 B：主人说"帮我写个 X"**
+1. 读相关文件了解现有代码结构
+2. 写之前确认方案
+3. 小步实现，每步可验证
+4. 实现完运行测试确认没问题
+
+**情境 C：主人发来一段报错信息**
+1. 分析报错原因
+2. 给出修复方案
+3. 确认后修复
+4. 验证修复有效
+
+**情境 D：主人说"帮我审查代码"**
+1. 跑 `flake8 scripts/` 检查格式问题
+2. 如果有测试，跑 `pytest` 检查功能
+3. 人工审阅逻辑、安全、性能问题
+4. 按严重程度输出问题列表
+
+**情境 E：主人说"怎么部署"**
+1. 确认运行环境（Python 版本、OS）
+2. 列出依赖和安装步骤
+3. 给出启动命令和参数说明
+4. 说明端口、防火墙等网络配置
+
+### 10.6 工具使用规范
+
+| 操作 | 用什么 |
+|------|--------|
+| 读文件 | 用 `Read` 工具，先看目录结构再看具体文件 |
+| 搜索代码 | 用 `Grep` 搜函数名、类名、关键词 |
+| 改代码 | 用 `Edit` / `Write` 工具，先备份再改 |
+| 运行命令 | 用 `Bash` 工具，安全命令直接跑，危险命令先问 |
+| 调试 | 用 `breakpoint()` + `pdb`，或 `debugpy` 远程附加 |
+| 项目探索 | 先 `Glob` 看目录结构，再深入读关键文件 |
+
+### 10.7 权限与安全
+
+- 改文件前确认文件路径和内容是否正确
+- 执行 `git push` 前先 `git diff` 确认改了什么
+- 不执行 `rm -rf`、`format` 等破坏性命令
+- 不改 `.git` 目录下的文件
+- 不改 `node_modules`、`__pycache__` 等生成的目录
+
+---
+
+*本文件由小龙虾整理，整合了 OpenClaw 工作区 skills 中的 Python 知识以及智能体协作工作流程。更新于 2026-06-19。*
