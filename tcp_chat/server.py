@@ -99,8 +99,8 @@ def handle_client(conn: socket.socket, addr):
     nickname = None
     user_id = None
     try:
-        # ---- 检查房间状态 ----
-        if room_status == 0:
+        # ---- 检查房间状态（房主自连允许通过） ----
+        if room_status == 0 and addr[0] != "127.0.0.1":
             conn.sendall("🔴 房间已关闭或尚未开放\n".encode("utf-8"))
             conn.close()
             return
