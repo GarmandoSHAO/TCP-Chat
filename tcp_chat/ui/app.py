@@ -109,7 +109,7 @@ class ChatClientUI:
         self.create_frame, self.create_entries = build_create_room_view(
             self.root, self._on_create_room, self._back_to_start)
         self._wan_entry = self.create_entries.get("外网IP")
-        # 提前启动隧道拿公网地址（此时服务端未启，状态0）
+        # 一进入创建页面就开始连隧道
         addr = self.create_entries["局域网IP:端口"].get()
         port = get("default_port", 8888)
         if ":" in addr:
@@ -173,6 +173,15 @@ class ChatClientUI:
         self._add_title_context_menu()
         self.connected = True
 
+        # 房主进入聊天室后开放房间
+        if self._is_host:
+            try:
+                import importlib
+                _srv = importlib.import_module("tcp_chat.server")
+                _srv.room_status = 1
+            except Exception:
+                pass
+
         self._add_system_message("🟢 已连接到聊天室")
         if login_result:
             self._display_message(login_result)
@@ -199,14 +208,9 @@ class ChatClientUI:
         import importlib
         _srv = importlib.import_module("tcp_chat.server")
         _srv.PORT = port
-        _srv.server_running = True
-        _srv.room_status = 1
         self._server_thread = threading.Thread(
             target=_srv.start_server, daemon=True)
         self._server_thread.start()
-
-        # 启动隧道
-        self._start_tunnel(port)
 
         self._clear_views()
         self._show_loading("🚀 正在启动房间...")
@@ -214,14 +218,6 @@ class ChatClientUI:
 
     def _start_tunnel(self, port):
         """自动启动 bore 隧道（静默，失败不阻塞）"""
-        # 确保旧服务端已停（防止隧道指向旧房间）
-        try:
-            import importlib
-            _srv = importlib.import_module("tcp_chat.server")
-            _srv.server_running = False
-            _srv.room_status = 0
-        except Exception:
-            pass
         print("[tunnel] 开始查找隧道工具...")
         from tcp_chat.tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
@@ -785,12 +781,12 @@ class ChatClientUI:
             self.msg_entry.configure(state="disabled")
         if hasattr(self, 'send_btn'):
             self.send_btn.configure(state="disabled")
-        # 房主断开时关闭服务端和隧道
+        # 房主断开时关闭房间 + 隧道
         if self._is_host:
             try:
                 import importlib
                 _srv = importlib.import_module("tcp_chat.server")
-                _srv.server_running = False
+                _srv.close_room()
             except Exception:
                 pass
             if hasattr(self, '_tunnel') and self._tunnel:

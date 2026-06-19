@@ -36,8 +36,8 @@ room_name = "聊天室"               # 房间名称
 host_conn = None                    # 房主连接
 next_user_id = 1                   # 自增用户 ID
 user_ids = {}                       # {conn: user_id}
-room_status = 1                     # 1=开放, 0=关闭
-server_running = True               # 服务端运行标志
+room_status = 0                     # 1=开放, 0=关闭（默认关闭）
+server_running = False              # 服务端运行标志
 
 
 def broadcast(message: str, sender_conn=None):
@@ -53,9 +53,8 @@ def broadcast(message: str, sender_conn=None):
 
 def close_room():
     """关闭房间：踢出所有成员，标记状态为 0"""
-    global room_status, server_running, clients, host_conn, user_ids
+    global room_status, clients, host_conn, user_ids
     room_status = 0
-    server_running = False
     with lock:
         for conn in list(clients.keys()):
             try:
@@ -96,10 +95,16 @@ def list_users() -> str:
 
 def handle_client(conn: socket.socket, addr):
     """处理单个客户端通信"""
-    global host_conn, next_user_id
+    global host_conn, next_user_id, room_status
     nickname = None
     user_id = None
     try:
+        # ---- 检查房间状态 ----
+        if room_status == 0:
+            conn.sendall("🔴 房间已关闭或尚未开放\n".encode("utf-8"))
+            conn.close()
+            return
+
         # ---- 欢迎 & 登录 ----
         conn.sendall("🟢 欢迎来到聊天室！请输入你的昵称: ".encode("utf-8"))
         nickname = conn.recv(1024).decode("utf-8").strip()
@@ -200,9 +205,9 @@ def broadcast_discovery():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    
+
     message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}".encode("utf-8")
-    
+
     while room_status == 1:
         try:
             sock.sendto(message, (BROADCAST_ADDRESS, DISCOVERY_PORT))
@@ -214,7 +219,9 @@ def broadcast_discovery():
 
 def start_server():
     """启动服务端"""
-    global server_running
+    global server_running, room_status
+    server_running = True
+    room_status = 0  # 默认关闭，房主进入聊天后才开放
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
