@@ -5,12 +5,13 @@ import socket
 import threading
 import time
 import queue
+import re
 
 DISCOVERY_PORT = 9999
 
 
 def connect_server(host, port, nickname, timeout=5):
-    """连接到服务端，完成登录握手，返回 (socket, welcome_msg, login_result)"""
+    """连接到服务端，完成登录握手，返回 (socket, welcome_msg, login_result, room_id, room_name)"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
     sock.connect((host, port))
@@ -23,12 +24,21 @@ def connect_server(host, port, nickname, timeout=5):
     if welcome.startswith("🔴"):
         sock.close()
         raise ConnectionError(welcome.strip())
+    # 从欢迎消息中解析房间号和房间名称
+    room_id = None
+    m = re.search(r"房间号:\s*(\S+)", welcome)
+    if m:
+        room_id = m.group(1).rstrip(")").rstrip("）")
+    room_name = None
+    m = re.search(r"欢迎来到「(.+?)」", welcome)
+    if m:
+        room_name = m.group(1)
     sock.sendall(nickname.encode("utf-8"))
     login = sock.recv(4096).decode("utf-8")
     if not login:
         sock.close()
         raise ConnectionError("🔴 登录失败：服务端未响应")
-    return sock, welcome, login
+    return sock, welcome, login, room_id, room_name
 
 
 def start_receive(sock, msg_queue, stop_check):

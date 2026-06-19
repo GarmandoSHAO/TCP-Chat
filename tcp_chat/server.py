@@ -8,6 +8,7 @@
 import socket
 import threading
 import time
+import random
 
 # ========== 配置 ==========
 HOST = "0.0.0.0"                    # 监听所有网卡
@@ -38,6 +39,7 @@ next_user_id = 1                   # 自增用户 ID
 user_ids = {}                       # {conn: user_id}
 room_status = 0                     # 1=开放, 0=关闭（默认关闭）
 server_running = False              # 服务端运行标志
+room_id = ""                        # 房间唯一 ID（启动时根据时间生成）
 
 
 def broadcast(message: str, sender_conn=None):
@@ -106,7 +108,7 @@ def handle_client(conn: socket.socket, addr):
             return
 
         # ---- 欢迎 & 登录 ----
-        conn.sendall("🟢 欢迎来到聊天室！请输入你的昵称: ".encode("utf-8"))
+        conn.sendall(f"🟢 欢迎来到「{room_name}」！(房间号: {room_id})\n请输入你的昵称: ".encode("utf-8"))
         nickname = conn.recv(1024).decode("utf-8").strip()
         if not nickname:
             nickname = f"用户{addr[1]}"
@@ -209,7 +211,7 @@ def broadcast_discovery():
     while True:
         try:
             if room_status == 1:
-                msg = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|1".encode("utf-8")
+                msg = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|1|{room_id}".encode("utf-8")
                 sock.sendto(msg, (BROADCAST_ADDRESS, DISCOVERY_PORT))
                 sock.sendto(msg, ("127.0.0.1", DISCOVERY_PORT))
                 if LOCAL_IP != "127.0.0.1":
@@ -222,9 +224,10 @@ def broadcast_discovery():
 
 def start_server():
     """启动服务端"""
-    global server_running, room_status
+    global server_running, room_status, room_id
     server_running = True
     room_status = 0  # 默认关闭，房主进入聊天后才开放
+    room_id = f"RM{int(time.time())}{random.randint(100, 999)}"
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
