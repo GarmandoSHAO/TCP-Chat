@@ -69,8 +69,8 @@ def scan_network(timeout=5):
                 msg = data.decode("utf-8")
                 if msg.startswith("CHAT_ROOM|"):
                     parts = msg.split("|")
-                    if len(parts) == 4:
-                        _, room_name, ip, port = parts
+                    if len(parts) >= 4:
+                        _, room_name, ip, port = parts[:4]
                         rooms[ip] = (room_name, int(port))
                         if rooms:  # 扫描到房间立即结束
                             break
