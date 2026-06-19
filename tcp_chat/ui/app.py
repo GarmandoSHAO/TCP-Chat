@@ -231,46 +231,36 @@ class ChatClientUI:
                 self._tunnel.stop()
             except Exception:
                 pass
-        print("[tunnel] 开始查找隧道工具...")
         from tcp_chat.tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
         if not tunnel:
-            print("[tunnel] ❌ 未找到 bore.exe")
             return
-        print(f"[tunnel] ✅ 找到 {type(tunnel).__name__}")
 
         def _run(attempt=0):
-            print(f"[tunnel] 正在连接 bore.pub... (第{attempt+1}次)")
             ok, msg = tunnel.start()
-            print(f"[tunnel] 连接结果: ok={ok}, msg={msg}")
             if ok:
                 self.root.after(0, lambda a=msg: self._finish_tunnel(a))
             elif attempt < retries:
-                print(f"[tunnel] 重试...")
                 import time
                 time.sleep(1)
                 _run(attempt + 1)
             else:
-                print("[tunnel] ❌ 隧道失败")
+            pass
 
         self._tunnel = tunnel
         threading.Thread(target=_run, daemon=True).start()
 
     def _finish_tunnel(self, addr):
         """隧道建立完成"""
-        print(f"[tunnel] ✅ 公网地址: {addr}")
         self._public_addr = addr
         if hasattr(self, '_wan_entry') and self._wan_entry:
             try:
                 self._wan_entry.configure(text_color="#000000")  # 黑色
                 self._wan_entry.delete(0, "end")
                 self._wan_entry.insert(0, addr)
-                print(f"[tunnel] ✅ 已写入外网IP框")
             except Exception as e:
-                print(f"[tunnel] ❌ 写入失败: {e}")
         else:
-            print(f"[tunnel] ⚠️ _wan_entry={getattr(self, '_wan_entry', 'NOT_EXISTS')}")
-            print(f"   hasattr={hasattr(self, '_wan_entry')}")
+            pass
 
     # ======================== 连接逻辑 ========================
 
@@ -305,14 +295,7 @@ class ChatClientUI:
     def _connect_thread(self, host, port, nick):
         try:
             sock, welcome, login_result = connect_server(host, port, nick)
-            import re as _re
-            for _line in login_result.split(chr(10)):
-                if '房间状态' in _line:
-                    _sc = _re.search(r'码:(\d+)', _line)
-                    if _sc:
-                        _v = _sc.group(1)
-                        print(f'[房间] 状态码: {_v} ({"开放" if _v=="1" else "关闭"})', flush=True)
-                    break
+
             self.sock = sock
             self.connected = True
             self.msg_queue.put(("CONNECTED", (welcome, login_result)))
