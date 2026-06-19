@@ -826,8 +826,7 @@ class ChatClientUI:
             if self.user_count_label:
                 self.user_count_label.configure(text="0 人在线")
             return
-        ds = max(9, int(12 * self._scale))
-        ns = max(10, int(12 * self._scale))
+        fs = max(10, int(12 * self._scale))
         for nick, uid in users:
             row = ctk.CTkFrame(self.user_list_inner, fg_color="transparent")
             row.pack(fill="x", pady=1, padx=6)
@@ -835,11 +834,11 @@ class ChatClientUI:
             indicator = "👑" if is_host else "●"
             color = HOST_GOLD if is_host else ONLINE_GREEN
             ctk.CTkLabel(
-                row, text=indicator, font=("Segoe UI", ds),
+                row, text=indicator, font=("Segoe UI", fs),
                 text_color=color,
             ).pack(side="left", padx=(0, 5))
             lbl = ctk.CTkLabel(
-                row, text=nick, font=("Segoe UI", ns), anchor="w",
+                row, text=nick, font=("Segoe UI", fs), anchor="w",
                 cursor="hand2" if nick != self.nickname else "",
             )
             lbl.pack(side="left", fill="x", expand=True)
