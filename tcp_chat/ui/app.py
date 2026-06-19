@@ -258,7 +258,8 @@ class ChatClientUI:
                 self._wan_entry.configure(text_color="#000000")  # 黑色
                 self._wan_entry.delete(0, "end")
                 self._wan_entry.insert(0, addr)
-            except Exception as e:
+            except Exception:
+                pass
         else:
             pass
 
