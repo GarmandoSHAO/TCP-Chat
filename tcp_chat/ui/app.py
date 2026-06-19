@@ -356,6 +356,11 @@ class ChatClientUI:
         self._cmd_hide()
         self.msg_entry.focus_set()
 
+    def _on_return(self, event):
+        if hasattr(self, 'cmd_popup') and self.cmd_popup.winfo_viewable():
+            if self._cmd_selected >= 0: self._cmd_insert_selected(); return "break"
+        return self._send_message() or "break"
+
     # ======================== 弹出开始窗口 ========================
 
     def _on_show_menu(self):
