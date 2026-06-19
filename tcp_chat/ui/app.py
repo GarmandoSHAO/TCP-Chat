@@ -596,7 +596,8 @@ class ChatClientUI:
         tw.see("end")
         tw.config(state="disabled")
         if "当前在线:" in display and not skip_parse:
-            self._parse_user_list(display)
+            # 用原始文本解析（含 |ID），display 已剥离了 |ID 只用于展示
+            self._parse_user_list(text)
         # 缓存记录（仅记录到主消息区，不记录到私聊窗口）
         if tw is self.msg_text and not self._restoring:
             self._record_message("system", display)
