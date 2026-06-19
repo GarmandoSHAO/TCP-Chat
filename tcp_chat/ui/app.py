@@ -831,7 +831,7 @@ class ChatClientUI:
             row = ctk.CTkFrame(self.user_list_inner, fg_color="transparent")
             row.pack(fill="x", pady=1, padx=6)
             is_host = uid == self._host_id
-            indicator = "👑" if is_host else "●"
+            indicator = " 👑 " if is_host else " ● "
             color = HOST_GOLD if is_host else ONLINE_GREEN
             ctk.CTkLabel(
                 row, text=indicator, font=("Segoe UI", fs),
@@ -1009,7 +1009,7 @@ class ChatClientUI:
             bg="white", fg="#333333", activebackground="#e8f5e9",
             activeforeground="#075e54",
         )
-        self._ctx_menu.add_command(label="🚪 退出房间", command=self._disconnect)
+        self._ctx_menu.add_command(label="🚪 退出房间", command=self._confirm_disconnect)
         self._ctx_menu.add_separator()
         self._ctx_menu.add_command(label="🌐 查看本机 IP", command=self._show_ip)
         if self.title_label:
@@ -1108,6 +1108,39 @@ class ChatClientUI:
         self._update_user_list_display(self.online_users)
 
     # ======================== 断开 & 关闭 ========================
+
+    def _confirm_disconnect(self):
+        """显示确认弹窗，确定后断开当前连接"""
+        win = ctk.CTkToplevel(self.root, fg_color="white")
+        win.title("退出房间")
+        x = self.root.winfo_x() + 120
+        y = self.root.winfo_y() + 100
+        win.geometry(f"300x140+{x}+{y}")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        win.grab_set()  # 模态
+
+        ctk.CTkLabel(
+            win, text="确定离开房间吗？",
+            font=("Segoe UI", 14), text_color="#333333",
+        ).pack(pady=(24, 8))
+
+        btn_frame = ctk.CTkFrame(win, fg_color="transparent")
+        btn_frame.pack(pady=(8, 0))
+
+        ctk.CTkButton(
+            btn_frame, text="确定", font=("Segoe UI", 12, "bold"),
+            width=80, height=32, corner_radius=6,
+            fg_color="#075e54", hover_color="#054d44",
+            command=lambda: (win.destroy(), self._disconnect()),
+        ).pack(side="left", padx=(0, 12))
+
+        ctk.CTkButton(
+            btn_frame, text="取消", font=("Segoe UI", 12),
+            width=80, height=32, corner_radius=6,
+            fg_color="#e0e0e0", text_color="#333333",
+            hover_color="#d0d0d0", command=win.destroy,
+        ).pack(side="left")
 
     def _disconnect(self):
         """断开当前连接"""
