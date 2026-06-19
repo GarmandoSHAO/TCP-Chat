@@ -133,6 +133,9 @@ class ChatClientUI:
         """创建房间回调（由 InitialInterface 调用）"""
         self.nickname = nickname
         self._is_host = True
+        # 重置外网地址和隧道（新房间新隧道）
+        self._public_addr = None
+        self._tunnel = None
         if tunnel:
             self._tunnel = tunnel
             if getattr(tunnel, "public_addr", None):

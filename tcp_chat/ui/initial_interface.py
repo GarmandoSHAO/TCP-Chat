@@ -177,19 +177,6 @@ class InitialInterface:
 
     def _start_tunnel(self, port, retries=2):
         """启动隧道穿透（bore / ngrok），结果回填到创建页"""
-        # 清理旧隧道和 bore 进程
-        if self._tunnel:
-            try:
-                self._tunnel.stop()
-            except Exception:
-                pass
-            self._tunnel = None
-        import subprocess as _sp
-        try:
-            _sp.run("taskkill /f /im bore.exe", shell=True, capture_output=True)
-        except Exception:
-            pass
-
         from ..tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
         if not tunnel:
@@ -198,8 +185,14 @@ class InitialInterface:
         def _run(attempt=0):
             ok, msg = tunnel.start()
             if ok:
+                # 无论窗口是否存在都通知控制器更新地址
+                try:
+                    self.controller._update_tunnel_addr(msg)
+                except Exception:
+                    pass
+                # 窗口还在则回填表单
                 if self.win and self.win.winfo_exists():
-                    self.win.after(0, lambda a=msg: self._finish_tunnel(a))
+                    self.win.after(0, lambda a=msg: self._do_fill_wan(a))
             elif attempt < retries:
                 import time
                 time.sleep(1)
@@ -208,14 +201,9 @@ class InitialInterface:
         self._tunnel = tunnel
         threading.Thread(target=_run, daemon=True).start()
 
-    def _finish_tunnel(self, addr):
-        """隧道建立成功，回填外网地址到输入框，同步到控制器"""
+    def _do_fill_wan(self, addr):
+        """回填外网地址到创建页的表单"""
         self._public_addr = addr
-        # 通知控制器更新当前标签的隧道地址
-        try:
-            self.controller._update_tunnel_addr(addr)
-        except Exception:
-            pass
         if self._wan_entry and self.win and self.win.winfo_exists():
             try:
                 self._wan_entry.configure(text_color="#000000")
