@@ -139,6 +139,12 @@ class ChatClientUI:
                 self._public_addr = tunnel.public_addr
         self._auto_connect(host, port, nickname)
 
+    def _update_tunnel_addr(self, addr):
+        """隧道连接成功后更新当前标签的外网地址"""
+        self._public_addr = addr
+        if 0 <= self._active_tab < len(self._tabs):
+            self._tabs[self._active_tab]["_public_addr"] = addr
+
     def _is_already_in_room(self, host, port, room_id=None):
         """检查是否已加入该房间
 
@@ -360,6 +366,8 @@ class ChatClientUI:
         self.room_id = tab.get("room_id")
         self._host = tab.get("host")
         self._port = tab.get("port")
+        self._public_addr = tab.get("_public_addr")
+        self._tunnel = tab.get("_tunnel")
         if tab.get("sock"):
             self.sock = tab["sock"]
 
@@ -425,8 +433,10 @@ class ChatClientUI:
             "host": host,
             "port": port,
             "room_name": room_name,
-            "_messages": [],     # 聊天记录缓存
-            "_host_id": None,    # 房主 ID
+            "_messages": [],        # 聊天记录缓存
+            "_host_id": None,       # 房主 ID
+            "_public_addr": getattr(self, "_public_addr", None),
+            "_tunnel": getattr(self, "_tunnel", None),
         }
         self._tabs.append(tab)
         if room_id:
@@ -1006,11 +1016,16 @@ class ChatClientUI:
             self._ctx_menu.grab_release()
 
     def _show_ip(self):
-        """显示本机 IP、隧道地址和房间号"""
+        """显示本机 IP、隧道地址和房间号（各房间独立）"""
         from ..config import get_local_ip
         port = getattr(self, "_port", 8888) or 8888
         ip = f"{get_local_ip()}:{port}"
+        # 优先使用缓存的公共地址，其次从隧道对象读取
         pub = getattr(self, "_public_addr", None)
+        if not pub:
+            tunnel = getattr(self, "_tunnel", None)
+            if tunnel and getattr(tunnel, "public_addr", None):
+                pub = tunnel.public_addr
         room_id = getattr(self, "room_id", None)
         win = ctk.CTkToplevel(self.root, fg_color="white")
         win.title("网络信息")

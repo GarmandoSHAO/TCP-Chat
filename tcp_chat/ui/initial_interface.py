@@ -209,8 +209,13 @@ class InitialInterface:
         threading.Thread(target=_run, daemon=True).start()
 
     def _finish_tunnel(self, addr):
-        """隧道建立成功，回填外网地址到输入框"""
+        """隧道建立成功，回填外网地址到输入框，同步到控制器"""
         self._public_addr = addr
+        # 通知控制器更新当前标签的隧道地址
+        try:
+            self.controller._update_tunnel_addr(addr)
+        except Exception:
+            pass
         if self._wan_entry and self.win and self.win.winfo_exists():
             try:
                 self._wan_entry.configure(text_color="#000000")
