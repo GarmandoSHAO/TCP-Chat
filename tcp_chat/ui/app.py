@@ -48,6 +48,8 @@ class ChatClientUI:
         self._base_width = 880
         self._public_addr = None
         self._drag_data = {"x": 0, "y": 0}
+        self._blocked_users = set()
+        self._private_chat_with = None
         if auto_connect:
             host, port, nick = auto_connect
             self.nickname = nick
