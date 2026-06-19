@@ -306,10 +306,13 @@ class ChatClientUI:
         try:
             sock, welcome, login_result = connect_server(host, port, nick)
             import re as _re
-            _m = _re.search(r'房间状态:.*?\(码:(\d+)\)', login_result)
-            if _m:
-                _s = '开放' if _m.group(1) == '1' else '关闭'
-                print(f'[房间] 状态码: {_m.group(1)} ({_s})')
+            for _line in login_result.split(chr(10)):
+                if '房间状态' in _line:
+                    _sc = _re.search(r'码:(\d+)', _line)
+                    if _sc:
+                        _v = _sc.group(1)
+                        print(f'[房间] 状态码: {_v} ({"开放" if _v=="1" else "关闭"})', flush=True)
+                    break
             self.sock = sock
             self.connected = True
             self.msg_queue.put(("CONNECTED", (welcome, login_result)))
