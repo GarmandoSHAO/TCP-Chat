@@ -199,6 +199,8 @@ class ChatClientUI:
         import importlib
         _srv = importlib.import_module("tcp_chat.server")
         _srv.PORT = port
+        _srv.server_running = True
+        _srv.room_status = 1
         self._server_thread = threading.Thread(
             target=_srv.start_server, daemon=True)
         self._server_thread.start()
