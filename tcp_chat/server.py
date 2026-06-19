@@ -206,14 +206,14 @@ def broadcast_discovery():
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|{room_status}".encode("utf-8")
-
-    while room_status == 1:
+    while True:
         try:
-            sock.sendto(message, (BROADCAST_ADDRESS, DISCOVERY_PORT))
-            sock.sendto(message, ("127.0.0.1", DISCOVERY_PORT))
-            if LOCAL_IP != "127.0.0.1":
-                sock.sendto(message, (LOCAL_IP, DISCOVERY_PORT))
+            if room_status == 1:
+                msg = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|1".encode("utf-8")
+                sock.sendto(msg, (BROADCAST_ADDRESS, DISCOVERY_PORT))
+                sock.sendto(msg, ("127.0.0.1", DISCOVERY_PORT))
+                if LOCAL_IP != "127.0.0.1":
+                    sock.sendto(msg, (LOCAL_IP, DISCOVERY_PORT))
             time.sleep(2)
         except Exception as e:
             print(f"[广播错误] {e}")
