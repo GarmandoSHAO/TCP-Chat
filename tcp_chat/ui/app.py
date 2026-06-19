@@ -596,8 +596,8 @@ class ChatClientUI:
                             pass
                     if hasattr(self, 'title_label'):
                         self.title_label.configure(text="聊天室 — 已断开")
-                    if hasattr(self, 'status_dot'):
-                        self.status_bar.configure(text_color=STATUS_RED)
+                    if hasattr(self, 'status_bar'):
+                        self.status_bar.configure(fg_color=STATUS_RED)
                 elif msg_type == "SCAN_RESULT":
                     name, ip, port = data
                     self.login_entries["地址:端口"].delete(0, "end")
@@ -800,8 +800,8 @@ class ChatClientUI:
             self.sock = None
         if hasattr(self, 'title_label'):
             self.title_label.configure(text="聊天室 — 已断开")
-        if hasattr(self, 'status_dot'):
-            self.status_bar.configure(text_color=STATUS_RED)
+        if hasattr(self, 'status_bar'):
+            self.status_bar.configure(fg_color=STATUS_RED)
         if hasattr(self, 'msg_entry'):
             self.msg_entry.configure(state="disabled")
         if hasattr(self, 'send_btn'):
