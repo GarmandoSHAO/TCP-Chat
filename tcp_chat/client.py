@@ -15,6 +15,10 @@ def connect_server(host, port, nickname, timeout=5):
     sock.settimeout(timeout)
     sock.connect((host, port))
     welcome = sock.recv(4096).decode("utf-8")
+    # 检查房间是否关闭
+    if welcome.startswith("🔴"):
+        sock.close()
+        raise ConnectionError(welcome.strip())
     sock.sendall(nickname.encode("utf-8"))
     login = sock.recv(4096).decode("utf-8")
     return sock, welcome, login
@@ -43,7 +47,7 @@ def start_receive(sock, msg_queue, stop_check):
 
 
 def scan_network(timeout=5):
-    """扫描局域网内的聊天室，返回 {ip: (room_name, port, status)}"""
+    """扫描局域网内的聊天室，返回 {ip: (room_name, port)}"""
     rooms = {}
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -58,10 +62,9 @@ def scan_network(timeout=5):
                 msg = data.decode("utf-8")
                 if msg.startswith("CHAT_ROOM|"):
                     parts = msg.split("|")
-                    if len(parts) >= 4:
-                        _, room_name, ip, port = parts[:4]
-                        status = int(parts[4]) if len(parts) >= 5 else 1
-                        rooms[ip] = (room_name, int(port), status)
+                    if len(parts) == 4:
+                        _, room_name, ip, port = parts
+                        rooms[ip] = (room_name, int(port))
                         if rooms:  # 扫描到房间立即结束
                             break
             except socket.timeout:
