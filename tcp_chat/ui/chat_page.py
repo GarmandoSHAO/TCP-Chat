@@ -5,45 +5,10 @@ import tkinter as tk
 import customtkinter as ctk
 from .theme import *
 
-def build_chat_view(container, on_send, on_disconnect, on_menu=None):
-    """聊天主界面：顶栏、消息区、用户面板、输入区"""
+def build_chat_view(container, on_send, on_disconnect):
+    """聊天主界面：消息区、用户面板、输入区（顶栏由主控统一管理）"""
     frame = ctk.CTkFrame(container, fg_color="transparent")
     frame.pack(fill="both", expand=True)
-
-    # ---- 顶栏 ----
-    top_bar = ctk.CTkFrame(frame, height=38, corner_radius=0, fg_color=WHITE)
-    top_bar.pack(fill="x", side="top")
-    top_bar.pack_propagate(False)
-
-    # "+" 菜单按钮（打开开始界面）
-    menu_btn = ctk.CTkButton(top_bar, text="+", width=28, height=26,
-                              font=("Segoe UI", 16, "bold"),
-                              corner_radius=6,
-                              fg_color=WHITE, text_color="#075e54",
-                              hover_color="#e8f5e9",
-                              command=on_menu)
-    menu_btn.pack(side="left", padx=(6, 2))
-
-    # 标题标签（绿色左边框 = 在线状态）
-    status_bar = ctk.CTkFrame(top_bar, width=3, height=20, fg_color=STATUS_GREEN,
-                               corner_radius=2)
-    status_bar.pack(side="left", padx=(10, 4))
-
-    title_label = ctk.CTkLabel(top_bar, text="聊天室 — 连接中...",
-                                font=("Segoe UI", 12, "bold"),
-                                text_color=CHAT_TITLE,
-                                fg_color="white",
-                                corner_radius=6,
-                                cursor="hand2")
-    title_label.pack(side="left", padx=(0, 6))
-    title_label.bind("<Enter>", lambda e: title_label.configure(
-        fg_color="#e8f5e9"))
-    title_label.bind("<Leave>", lambda e: title_label.configure(
-        fg_color="white"))
-
-    # 标签容器（与顶栏同排）
-    tab_container = ctk.CTkFrame(top_bar, fg_color="transparent")
-    tab_container.pack(side="left", fill="x", expand=True)
 
     # ---- 主体 ----
     main_area = ctk.CTkFrame(frame, fg_color="transparent")
@@ -195,11 +160,6 @@ def build_chat_view(container, on_send, on_disconnect, on_menu=None):
 
     return {
         "frame": frame,
-        "top_bar": top_bar,
-        "menu_btn": menu_btn,
-        "tab_container": tab_container,
-        "status_bar": status_bar,
-        "title_label": title_label,
         "msg_text": msg_text,
         "msg_frame": msg_frame,
         "user_list_inner": user_list_inner,

@@ -5,8 +5,8 @@ import tkinter as tk
 import customtkinter as ctk
 from .theme import *
 
-def build_login_view(container, fields_config, on_connect):
-    """登录界面：地址:端口 + 昵称 + 连接按钮"""
+def build_login_view(container, fields_config, on_connect, on_back=None):
+    """登录界面：地址:端口 + 昵称 + 连接按钮 + 返回"""
     frame = ctk.CTkFrame(container, fg_color=WHITE)
     frame.pack(fill="both", expand=True)
 
@@ -69,6 +69,14 @@ def build_login_view(container, fields_config, on_connect):
 
     status = ctk.CTkLabel(center, text="", font=("Segoe UI", 10),
                           text_color=ERROR_FG)
-    status.pack(pady=(0, 20))
+    status.pack(pady=(0, 8))
+
+    # 返回按钮（紧跟在状态文字下方）
+    if on_back:
+        ctk.CTkButton(center, text="← 返回", font=("Segoe UI", 11),
+                       width=200, height=30, corner_radius=8,
+                       fg_color="white", text_color="#888888",
+                       hover_color="#f0f0f0", command=on_back,
+                       ).pack(pady=(0, 4))
 
     return frame, entries, scan_btn, connect_btn, status

@@ -132,16 +132,11 @@ class InitialInterface:
         ]
         frame, entries, scan_btn, connect_btn, status = build_login_view(
             self.win, fields, lambda: None,
+            on_back=self._show_start,
         )
         connect_btn.configure(command=lambda: self._do_join(entries, status))
         if scan_btn:
             scan_btn.configure(command=lambda: self._scan_lan(entries, status))
-        ctk.CTkButton(
-            self.win, text="← 返回", font=("Segoe UI", 11),
-            width=200, height=30, corner_radius=8,
-            fg_color="white", text_color="#888888",
-            hover_color="#f0f0f0", command=self._show_start,
-        ).pack(pady=(4, 0))
 
     # ======================== 创建房间 ========================
 
@@ -259,8 +254,24 @@ class InitialInterface:
         status.configure(
             text="🔍 正在扫描... 剩余 5 秒", text_color="#1976d2")
 
+        # 真实倒计时（每秒更新），扫描完成后停止
+        _count = [4]
+        _done = [False]
+
+        def _tick():
+            if _done[0] or _count[0] <= 0 or not (self.win and self.win.winfo_exists()):
+                return
+            status.configure(
+                text=f"🔍 正在扫描... 剩余 {_count[0]} 秒",
+                text_color="#1976d2")
+            _count[0] -= 1
+            self.win.after(1000, _tick)
+
+        self.win.after(1000, _tick)
+
         def _do():
             rooms = scan_network(timeout=5)
+            _done[0] = True
             if rooms and self.win and self.win.winfo_exists():
                 ip = list(rooms.keys())[0]
                 name, port = rooms[ip][:2]
