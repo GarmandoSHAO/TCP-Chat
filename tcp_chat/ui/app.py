@@ -143,8 +143,8 @@ class ChatClientUI:
         self._auto_connect(host, port, nickname)
 
     def _update_tunnel_addr(self, addr):
-        """隧道连接成功后记录外网地址（各房间通过隧道对象独立读取）"""
-        self._public_addr = addr
+        """隧道连接成功（不再需要，各房间通过独立隧道对象读取地址）"""
+        pass
 
     def _is_already_in_room(self, host, port, room_id=None):
         """检查是否已加入该房间
@@ -1021,12 +1021,9 @@ class ChatClientUI:
         from ..config import get_local_ip
         port = getattr(self, "_port", 8888) or 8888
         ip = f"{get_local_ip()}:{port}"
-        # 优先从当前房间的隧道对象读取（各房间独立，不受全局变量覆盖）
+        # 只从当前房间的隧道对象读取（各房间独立，不受全局变量覆盖）
         tunnel = getattr(self, "_tunnel", None)
         pub = tunnel.public_addr if (tunnel and getattr(tunnel, "public_addr", None)) else None
-        # 全局缓存作为备选
-        if not pub:
-            pub = getattr(self, "_public_addr", None)
         room_id = getattr(self, "room_id", None)
         win = ctk.CTkToplevel(self.root, fg_color="white")
         win.title("网络信息")
