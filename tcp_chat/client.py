@@ -15,12 +15,19 @@ def connect_server(host, port, nickname, timeout=5):
     sock.settimeout(timeout)
     sock.connect((host, port))
     welcome = sock.recv(4096).decode("utf-8")
+    # 空数据 = 隧道无服务端 / 僵尸连接
+    if not welcome:
+        sock.close()
+        raise ConnectionError("🔴 连接失败：目标服务端未运行")
     # 检查房间是否关闭
     if welcome.startswith("🔴"):
         sock.close()
         raise ConnectionError(welcome.strip())
     sock.sendall(nickname.encode("utf-8"))
     login = sock.recv(4096).decode("utf-8")
+    if not login:
+        sock.close()
+        raise ConnectionError("🔴 登录失败：服务端未响应")
     return sock, welcome, login
 
 
