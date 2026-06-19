@@ -231,6 +231,11 @@ class ChatClientUI:
                 self._tunnel.stop()
             except Exception:
                 pass
+        import subprocess as _sp
+        try:
+            _sp.run('taskkill /f /im bore.exe', shell=True, capture_output=True)
+        except Exception:
+            pass
         from tcp_chat.tunnel import auto_tunnel
         tunnel = auto_tunnel(port)
         if not tunnel:
