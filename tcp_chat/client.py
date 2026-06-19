@@ -43,7 +43,7 @@ def start_receive(sock, msg_queue, stop_check):
 
 
 def scan_network(timeout=5):
-    """扫描局域网内的聊天室，返回 {ip: (room_name, port)}"""
+    """扫描局域网内的聊天室，返回 {ip: (room_name, port, status)}"""
     rooms = {}
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -58,9 +58,10 @@ def scan_network(timeout=5):
                 msg = data.decode("utf-8")
                 if msg.startswith("CHAT_ROOM|"):
                     parts = msg.split("|")
-                    if len(parts) == 4:
-                        _, room_name, ip, port = parts
-                        rooms[ip] = (room_name, int(port))
+                    if len(parts) >= 4:
+                        _, room_name, ip, port = parts[:4]
+                        status = int(parts[4]) if len(parts) >= 5 else 1
+                        rooms[ip] = (room_name, int(port), status)
                         if rooms:  # 扫描到房间立即结束
                             break
             except socket.timeout:

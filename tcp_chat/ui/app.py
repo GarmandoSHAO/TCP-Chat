@@ -338,8 +338,8 @@ class ChatClientUI:
         rooms = scan_network(timeout=5)
         if rooms:
             ip = list(rooms.keys())[0]
-            name, port = rooms[ip]
-            self.msg_queue.put(("SCAN_RESULT", (name, ip, port)))
+            name, port, status = rooms[ip]
+            self.msg_queue.put(("SCAN_RESULT", (name, ip, port, status)))
         else:
             self.msg_queue.put(("SCAN_FAIL", None))
 

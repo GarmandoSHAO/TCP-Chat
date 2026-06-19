@@ -206,7 +206,7 @@ def broadcast_discovery():
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}".encode("utf-8")
+    message = f"CHAT_ROOM|{room_name}|{LOCAL_IP}|{PORT}|{room_status}".encode("utf-8")
 
     while room_status == 1:
         try:
