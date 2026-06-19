@@ -245,7 +245,7 @@ class ChatClientUI:
                 time.sleep(1)
                 _run(attempt + 1)
             else:
-            pass
+                pass
 
         self._tunnel = tunnel
         threading.Thread(target=_run, daemon=True).start()
