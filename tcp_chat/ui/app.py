@@ -245,12 +245,16 @@ class ChatClientUI:
 
     def _refresh_tabs(self):
         """刷新标签栏：所有房间用和标题栏一致的样式显示为可点击标签"""
-        if not hasattr(self, "tab_container") or not self._tabs:
+        if not hasattr(self, "tab_container"):
+            return
+        # 先清除所有旧标签
+        for w in self.tab_container.winfo_children():
+            w.destroy()
+        if not self._tabs:
+            self.tab_container.pack_forget()
             return
         # 总是显示标签栏
         self.tab_container.pack(side="left", fill="x", expand=True)
-        for w in self.tab_container.winfo_children():
-            w.destroy()
         for i, tab in enumerate(self._tabs):
             is_active = (i == self._active_tab)
             frame = ctk.CTkFrame(self.tab_container, fg_color="transparent")
@@ -1205,8 +1209,25 @@ class ChatClientUI:
                 self.msg_entry.configure(state="disabled")
             if self.send_btn:
                 self.send_btn.configure(state="disabled")
-            self.root.withdraw()
-            self._open_initial_interface()
+            # 清空消息区，显示引导文字
+            if self.msg_text:
+                self.msg_text.config(state="normal")
+                self.msg_text.delete("1.0", "end")
+                self.msg_text.insert("end",
+                    "点击左上角 [+] 按钮来创建或加入聊天房间吧",
+                    ("system",))
+                self.msg_text.config(state="disabled")
+            # 清空用户列表
+            if self.user_list_inner:
+                for w in self.user_list_inner.winfo_children():
+                    w.destroy()
+            if self.user_count_label:
+                self.user_count_label.configure(text="0 人在线")
+            if self.title_label:
+                self.title_label.configure(text="聊天室")
+            if self.status_bar:
+                self.status_bar.configure(fg_color=STATUS_RED)
+            self._refresh_tabs()
 
     def _on_close(self):
         """窗口关闭事件（清除所有缓存）"""
