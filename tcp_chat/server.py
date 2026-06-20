@@ -9,6 +9,9 @@ import socket
 import threading
 import time
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ========== 配置常量 ==========
 HOST = "0.0.0.0"                    # 监听所有网卡
@@ -105,9 +108,11 @@ class ChatServer:
         """处理单个客户端通信"""
         nickname = None
         user_id = None
+        logger.info("新连接: %s (room=%s)", addr, self.room_name)
         try:
             # ---- 检查房间状态（房主自连允许通过） ----
             if self.room_status == 0 and addr[0] != "127.0.0.1":
+                logger.warning("房间未开放，拒绝连接: %s", addr)
                 conn.sendall("🔴 房间已关闭或尚未开放\n".encode("utf-8"))
                 conn.close()
                 return
@@ -117,6 +122,21 @@ class ChatServer:
             nickname = conn.recv(1024).decode("utf-8").strip()
             if not nickname:
                 nickname = f"用户{addr[1]}"
+                logger.warning("昵称为空，使用默认: %s", nickname)
+            else:
+                logger.info("客户端输入昵称: %s", nickname)
+
+            # 重复昵称自动重命名：用户 → 用户1 → 用户2 ...
+            with self.lock:
+                existing_nicks = set(self.clients.values())
+                if nickname in existing_nicks:
+                    base = nickname
+                    suffix = 1
+                    while f"{base}{suffix}" in existing_nicks:
+                        suffix += 1
+                    new_nick = f"{base}{suffix}"
+                    conn.sendall(f"⚠️ 昵称 \"{nickname}\" 已被使用，已自动改为 \"{new_nick}\"\n".encode("utf-8"))
+                    nickname = new_nick
 
             with self.lock:
                 # 分配唯一 ID
@@ -129,15 +149,18 @@ class ChatServer:
                     self.host_conn = conn
             self.broadcast(f"📢 {nickname}|{user_id} 进入了聊天室", conn)
             conn.sendall(f"✅ 登录成功！输入 /help 查看命令帮助\n📊 房间状态: {'🟢 开放' if self.room_status else '🔴 关闭'} (码:{self.room_status})\n{self.list_users()}\n".encode("utf-8"))
+            logger.info("用户登录成功: %s (uid=%d, host=%s)", nickname, user_id, conn == self.host_conn)
 
             # ---- 主循环 ----
             while True:
                 data = conn.recv(4096)
                 if not data:
+                    logger.info("用户 %s 连接关闭(recv空)", nickname)
                     break
                 msg = data.decode("utf-8").strip()
                 if not msg:
                     continue
+                logger.debug("收到消息 from %s: %s", nickname, msg[:80])
 
                 # 解析命令
                 if msg.startswith("/"):
@@ -178,15 +201,19 @@ class ChatServer:
                                 success = self.send_to(target, f"💬 [私聊]({nickname}): {content}\n")
                                 if success:
                                     conn.sendall(f"💬 [私聊](你 → {target}): {content}\n".encode("utf-8"))
+                                    logger.info("私聊: %s -> %s: %s", nickname, target, content[:50])
                                 else:
                                     conn.sendall(f"❌ 用户 \"{target}\" 不在线或不存在\n".encode("utf-8"))
+                                    logger.warning("私聊失败: %s -> %s (用户不在线)", nickname, target)
                     else:
                         conn.sendall(f"❌ 未知命令 \"{cmd}\"。输入 /help 查看帮助\n".encode("utf-8"))
                 else:
                     # 群聊消息
                     self.broadcast(f"💬 [{nickname}]: {msg}\n", conn)
+                    logger.debug("群聊: %s: %s", nickname, msg[:50])
 
-        except (ConnectionResetError, ConnectionAbortedError, OSError):
+        except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
+            logger.warning("连接异常: %s %s", nickname, e)
             pass
         finally:
             # ---- 清理 ----
@@ -198,11 +225,13 @@ class ChatServer:
                 if conn == self.host_conn:
                     self.host_conn = None  # 房主离开，重置
             if nickname and user_id:
+                logger.info("用户离开: %s (uid=%d)", nickname, user_id)
                 self.broadcast(f"🔴 {nickname}|{user_id} 离开了聊天室\n")
             try:
                 conn.close()
             except:
                 pass
+            logger.info("连接关闭: %s — %s", addr, nickname or '未知')
             print(f"[断开] {addr} — {nickname or '未知'}")
 
     def broadcast_discovery(self):
@@ -229,6 +258,7 @@ class ChatServer:
         self.server_running = True
         self.room_status = 0  # 默认关闭，房主进入聊天后才开放
         self.room_id = f"RM{int(time.time())}{random.randint(100, 999)}"
+        logger.info("服务端启动: room=%s port=%d room_id=%s", self.room_name, self.PORT, self.room_id)
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((self.HOST, self.PORT))

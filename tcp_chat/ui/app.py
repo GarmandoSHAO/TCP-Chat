@@ -20,9 +20,20 @@ from .widgets import make_draggable
 from .chat_page import build_chat_view
 from .initial_interface import InitialInterface
 from . import cache_manager
+from .file_transfer_ui import FileTransferManager, MSG_PREFIX_OFFER, MSG_PREFIX_ACCEPT, MSG_PREFIX_DECLINE
 
 ctk.set_appearance_mode(get("appearance", "light"))
 ctk.set_default_color_theme(get("theme", "green"))
+
+# ── 初始化日志系统 ──
+from ..log_config import setup_logging
+_log_file = setup_logging()
+import logging
+logger = logging.getLogger(__name__)
+logger.info("=" * 50)
+logger.info("程序启动")
+logger.info("日志文件: %s", _log_file)
+logger.info("=" * 50)
 
 
 class ChatClientUI:
@@ -72,6 +83,9 @@ class ChatClientUI:
 
         # ---- 初始界面 ----
         self._initial_interface = None
+
+        # ---- 文件传输管理器 ----
+        self.ft_manager = FileTransferManager(self)
 
         # ---- UI 控件引用（由 _build_user_interface 填充） ----
         self.chat_frame = None
@@ -434,6 +448,11 @@ class ChatClientUI:
         if is_private:
             # 私聊标签：恢复消息显示（无用户列表）
             self._rebuild_private_chat_display(tab)
+            # 重新显示文件邀约按钮（如有）
+            try:
+                self.ft_manager.redisplay_offers(tab)
+            except Exception:
+                pass
         else:
             # 房间标签：恢复在线用户列表和消息
             self.online_users = tab.get("online_users", [])
@@ -546,10 +565,12 @@ class ChatClientUI:
 
     def _connect_thread(self, host, port, nick):
         """在后台线程中连接服务端"""
+        logger.info("连接线程启动: %s:%d nick=%s", host, port, nick)
         try:
-            sock, welcome, login_result, room_id, room_name = connect_server(host, port, nick)
+            sock, welcome, login_result, room_id, room_name, actual_nick = connect_server(host, port, nick)
             self.sock = sock
             self.connected = True
+            logger.info("连接成功: room=%s nick=%s", room_name, actual_nick)
             self.msg_queue.put(("CONNECTED", {
                 "welcome": welcome,
                 "login": login_result,
@@ -557,7 +578,7 @@ class ChatClientUI:
                 "room_name": room_name or "",
                 "host": host,
                 "port": port,
-                "nickname": nick,
+                "nickname": actual_nick,
             }))
             self.stop_threads = False
             threading.Thread(
@@ -648,12 +669,57 @@ class ChatClientUI:
                 inner = raw_msg[7:end_paren]  # "发送者" 或 "你 → 目标"
                 if not inner.strip():
                     return  # 空的发送者名，忽略
+
+                # 提取消息内容
+                content = raw_msg[end_paren + 1:]
+                if content.startswith(": "):
+                    content = content[2:]
+
+                # 检测文件传输消息
+                if content.startswith(MSG_PREFIX_OFFER):
+                    # /file_offer|<address>|<filepath>|<filesize>
+                    if "→" in inner:
+                        # 自己是发送方，对方的回应：不处理邀约（自己的回显）
+                        target = inner.split("→")[1].strip()
+                        self._route_private_message(raw_msg, target, is_self=True)
+                    else:
+                        sender = inner.strip()
+                        # 创建或获取私聊标签
+                        tab = self._get_or_create_private_tab(sender)
+                        # 在房间聊天区显示通知
+                        sz = content.rsplit("|", 1)[-1]
+                        try:
+                            from .file_transfer_ui import format_size
+                            hint = f" ({format_size(int(sz))})" if sz.isdigit() else ""
+                        except Exception:
+                            hint = ""
+                        self._add_system_message(f"📥 {sender} 向你发送了文件{hint}，请切换到私聊查看")
+                        self.ft_manager.handle_offer(tab, sender, content)
+                    return
+                elif content.startswith(MSG_PREFIX_ACCEPT):
+                    # 对方接受了文件
+                    if "→" in inner:
+                        # 自己这边收到对方接受通知
+                        target = inner.split("→")[1].strip()
+                        self.ft_manager.handle_accept_response(target, content)
+                    else:
+                        self.ft_manager.handle_accept_response(inner.strip(), content)
+                    return
+                elif content.startswith(MSG_PREFIX_DECLINE):
+                    # 对方拒绝了文件
+                    if "→" in inner:
+                        target = inner.split("→")[1].strip()
+                        self.ft_manager.handle_decline_response(target, content)
+                    else:
+                        sender = inner.strip()
+                        self.ft_manager.handle_decline_response(sender, content)
+                    return
+
+                # 普通私聊消息
                 if "→" in inner:
-                    # 自己发出的私聊回显
                     target = inner.split("→")[1].strip()
                     self._route_private_message(raw_msg, target, is_self=True)
                 else:
-                    # 别人发来的私聊
                     sender = inner.strip()
                     self._route_private_message(raw_msg, sender, is_self=False)
             return
@@ -769,10 +835,11 @@ class ChatClientUI:
 
         if target_tab:
             display = f"  {ts}  我 → {nick}\n{content}\n" if is_self else f"  {ts}  {nick}\n{content}\n"
+            # 只缓存，不插入文本控件（is_self 时 _send_pc 已做本地回显）
             target_tab["_messages"].append(("normal", display))
 
-            # 如果该标签正在活动，直接更新显示
-            if self._active_tab == target_tab["id"]:
+            # 非自身回显才直接更新显示（自己的消息已由 _send_pc 显示）
+            if not is_self and self._active_tab == target_tab["id"]:
                 tw = target_tab.get("msg_text")
                 if tw:
                     tw.config(state="normal")
@@ -1210,6 +1277,9 @@ class ChatClientUI:
         btn_frame.pack(fill="x", padx=10, pady=(8, 0))
 
         action_btns = [
+            ("📁 发送文件", lambda n=nick: (
+                lambda t: t and self.ft_manager.send_file(t, n)
+            )(self._find_private_tab(n))),
             ("📋 用户信息", lambda: self._add_system_message(
                 f"📋 {nick} 的信息功能待扩展")),
             ("🔇 屏蔽用户", lambda n=nick: self._toggle_block(n)),
@@ -1309,6 +1379,22 @@ class ChatClientUI:
         tab = self._create_private_tab_silent(nick)
         self._switch_tab(tab["id"])
 
+    # ── 文件传输辅助 ──────────────────────────────
+
+    def _find_private_tab(self, nick):
+        """通过昵称查找私聊标签"""
+        for tab in self._tabs:
+            if tab.get("type") == "private" and tab.get("target_nick") == nick:
+                return tab
+        return None
+
+    def _get_or_create_private_tab(self, nick):
+        """获取或创建私聊标签（不切换）"""
+        tab = self._find_private_tab(nick)
+        if not tab:
+            tab = self._create_private_tab_silent(nick)
+        return tab
+
     def _close_private_tab(self, tab_id):
         """关闭私聊标签页"""
         if tab_id < 0 or tab_id >= len(self._tabs):
@@ -1317,12 +1403,14 @@ class ChatClientUI:
         if tab.get("type") != "private":
             return
 
+        # 清理文件传输
+        self.ft_manager.cleanup_tab(tab)
+
         # 销毁视图
-        if tab.get("view_frame"):
-            try:
-                tab["view_frame"].destroy()
-            except Exception:
-                pass
+        try:
+            tab["view_frame"].destroy()
+        except Exception:
+            pass
 
         # 从标签列表移除
         self._tabs.pop(tab_id)
@@ -1603,6 +1691,13 @@ class ChatClientUI:
                     t.stop()
                 except Exception:
                     pass
+
+        # 清理文件传输
+        try:
+            self.ft_manager.cleanup_all()
+        except Exception:
+            pass
+
         self.root.destroy()
 
     def run(self):

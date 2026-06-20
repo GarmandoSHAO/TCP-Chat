@@ -233,12 +233,12 @@ class InitialInterface:
 
         def _do():
             try:
-                sock, welcome, login, room_id, room_name = connect_server(host, port, nick)
+                sock, welcome, login, room_id, room_name, actual_nick = connect_server(host, port, nick)
                 if self.win and self.win.winfo_exists():
                     self.win.after(0, lambda: status.configure(
                         text="✅ 已连接", text_color="#2e7d32"))
                     self.win.after(0, lambda: self.controller.on_room_joined(
-                        nick, host, port, sock, welcome, login, room_id, room_name))
+                        actual_nick, host, port, sock, welcome, login, room_id, room_name))
                     self.win.after(300, self.close)
             except Exception as e:
                 if self.win and self.win.winfo_exists():

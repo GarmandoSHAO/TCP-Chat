@@ -6,6 +6,9 @@ import threading
 import time
 import queue
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 DISCOVERY_PORT = 9999
 
@@ -14,15 +17,19 @@ def connect_server(host, port, nickname, timeout=5):
     """连接到服务端，完成登录握手，返回 (socket, welcome_msg, login_result, room_id, room_name)"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
+    logger.info("连接服务器: %s:%d (nick=%s)", host, port, nickname)
     sock.connect((host, port))
     welcome = sock.recv(4096).decode("utf-8")
+    logger.debug("收到欢迎: %s", welcome[:80].replace("\n", "|"))
     # 空数据 = 隧道无服务端 / 僵尸连接
     if not welcome:
         sock.close()
+        logger.error("连接失败：空欢迎消息")
         raise ConnectionError("🔴 连接失败：目标服务端未运行")
     # 检查房间是否关闭
     if welcome.startswith("🔴"):
         sock.close()
+        logger.warning("房间已关闭: %s", welcome.strip())
         raise ConnectionError(welcome.strip())
     # 从欢迎消息中解析房间号和房间名称
     room_id = None
@@ -34,16 +41,31 @@ def connect_server(host, port, nickname, timeout=5):
     if m:
         room_name = m.group(1)
     sock.sendall(nickname.encode("utf-8"))
+    logger.debug("发送昵称: %s", nickname)
     login = sock.recv(4096).decode("utf-8")
     if not login:
         sock.close()
         raise ConnectionError("🔴 登录失败：服务端未响应")
-    return sock, welcome, login, room_id, room_name
+    logger.debug("收到登录响应: %s", login[:80].replace("\n", "|"))
+
+    # 解析服务端返回的实际昵称（可能被自动重命名）
+    actual_nick = nickname
+    for line in login.split("\n"):
+        if line.startswith("⚠️") and "自动改为" in line:
+            m = re.search(r'"(.+?)"', line.split("自动改为")[-1])
+            if m:
+                actual_nick = m.group(1)
+                logger.info("昵称被自动重命名: %s -> %s", nickname, actual_nick)
+            break
+
+    logger.info("连接成功: room=%s nickname=%s", room_name, actual_nick)
+    return sock, welcome, login, room_id, room_name, actual_nick
 
 
 def start_receive(sock, msg_queue, stop_check):
     """后台接收线程：持续收消息，放入队列。stop_check 是可调用对象，返回 True 时退出"""
-    _sock_id = id(sock)  # 记录 socket 标识，用于消息过滤
+    _sock_id = id(sock)
+    logger.info("接收线程启动 (sock_id=%d)", _sock_id)
     while True:
         if callable(stop_check) and stop_check():
             break
