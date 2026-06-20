@@ -25,3 +25,12 @@ debug/
 # PyInstaller build artifacts
 build/
 *.spec
+*.zip
+*.tmp
+
+# 测试数据文件
+*.dat
+*.ft_session.json
+*.tmp
+*.zip
+received_files/
