@@ -5,19 +5,16 @@
 import json
 import os
 
+from ..config import get_app_root
+
 _CACHE_DIR = None
 
 
 def _get_dir():
-    """获取缓存目录路径（项目根目录/chat_cache）"""
+    """获取缓存目录路径（应用根目录/chat_cache）"""
     global _CACHE_DIR
     if _CACHE_DIR is None:
-        _CACHE_DIR = os.path.join(
-            os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ),
-            "chat_cache",
-        )
+        _CACHE_DIR = os.path.join(get_app_root(), "chat_cache")
     return _CACHE_DIR
 
 

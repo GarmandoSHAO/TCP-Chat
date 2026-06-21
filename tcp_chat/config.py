@@ -4,14 +4,26 @@
 import json
 import os
 import socket
+import sys
 
 _CONFIG = None
 
 
+def get_app_root() -> str:
+    """获取应用根目录（源码运行和 PyInstaller 打包后均正确）
+
+    源码运行:  返回项目根目录 TCP-Chat/
+    打包运行:  返回 exe 所在目录（--onedir 模式下即安装目录）
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    # 源码运行：__file__ = tcp_chat/config.py → ../ → 项目根
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def _find_config():
-    """从项目根目录查找 config.json"""
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path = os.path.join(root, "config.json")
+    """从应用根目录查找 config.json"""
+    path = os.path.join(get_app_root(), "config.json")
     if os.path.exists(path):
         return path
     return None

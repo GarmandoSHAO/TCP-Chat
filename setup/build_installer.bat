@@ -12,7 +12,7 @@ echo.
 
 :: ── 检查环境 ──────────────────────────────────────
 
-echo [1/5] 检查环境...
+echo [1/4] 检查环境...
 echo.
 
 :: Python
@@ -40,15 +40,13 @@ for %%p in (
     "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
     "%ProgramFiles%\Inno Setup\ISCC.exe"
     "%ProgramFiles(x86)%\Inno Setup\ISCC.exe"
+    "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 ) do (
     if exist "%%~p" set "ISCC=%%~p"
 )
 if "%ISCC%"=="" (
     echo   [WARN] 未找到 Inno Setup 6.x
     echo   请从 https://jrsoftware.org/isinfo.php 下载安装
-    echo.
-    echo   安装后设置 ISCC_PATH 环境变量，或修改本脚本
-    echo.
     set NEED_ISCC=1
 ) else (
     echo   [OK] Inno Setup: %ISCC%
@@ -60,19 +58,17 @@ cd /d "%~dp0.."
 set "ROOT=%CD%"
 echo   [OK] 项目目录: %ROOT%
 
-:: ── Step 2: PyInstaller 打包 ─────────────────────
+:: ── Step 2: PyInstaller --onedir 打包 ─────────────
 
 echo.
-echo [2/5] PyInstaller 打包...
+echo [2/4] PyInstaller --onedir 打包...
 echo.
 
-python -m PyInstaller --onefile --noconsole --name "TCP-Chat" ^
-    --hidden-import tcp_chat.server ^
-    --hidden-import tcp_chat.tunnel ^
-    --hidden-import tcp_chat.config ^
-    --hidden-import tcp_chat.client ^
-    --distpath "%ROOT%" ^
-    "%ROOT%\main.py"
+:: 清理旧产物
+if exist "%ROOT%\dist\TCP-Chat" rmdir /s /q "%ROOT%\dist\TCP-Chat"
+
+:: 用 spec 文件打包（--onedir 模式，自动包含 datas）
+python -m PyInstaller "%ROOT%\TCP-Chat.spec" --distpath "%ROOT%\dist" --workpath "%ROOT%\build" --noconfirm
 
 if %errorlevel% neq 0 (
     echo [FAIL] PyInstaller 打包失败
@@ -80,48 +76,60 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: 检查 exe 是否生成
-if not exist "%ROOT%\TCP-Chat.exe" (
-    echo [FAIL] TCP-Chat.exe 未生成
+:: 检查产物
+set "BUILD_DIR=%ROOT%\dist\TCP-Chat"
+if not exist "%BUILD_DIR%\TCP-Chat.exe" (
+    echo [FAIL] dist\TCP-Chat\TCP-Chat.exe 未生成
     pause
     exit /b 1
 )
-for %%f in ("%ROOT%\TCP-Chat.exe") do set EXE_SIZE=%%~zf
-set /a "EXE_SIZE_MB=EXE_SIZE / 1024 / 1024"
-echo   [OK] TCP-Chat.exe (%EXE_SIZE_MB% MB)
+echo   [OK] dist\TCP-Chat\TCP-Chat.exe
 
-:: ── Step 3: 检查外部工具 ─────────────────────────
+:: ── Step 3: 复制外部工具到打包目录 ───────────────
 
 echo.
-echo [3/5] 检查外部工具...
+echo [3/4] 复制外部工具...
 echo.
 
-if not exist "%ROOT%\bore.exe" (
-    echo   [WARN] bore.exe 未找到
+if exist "%ROOT%\bore.exe" (
+    copy /y "%ROOT%\bore.exe" "%BUILD_DIR%\bore.exe" >nul
+    echo   [OK] bore.exe → dist\TCP-Chat\
+) else (
+    echo   [WARN] bore.exe 未找到，隧道功能不可用
     echo   请从 https://github.com/ekzhang/bore/releases 下载
-    echo   并放置到项目根目录
-    echo.
-) else (
-    for %%f in ("%ROOT%\bore.exe") do set BORE_SIZE=%%~zf
-    set /a "BORE_SIZE_KB=BORE_SIZE / 1024"
-    echo   [OK] bore.exe (%BORE_SIZE_KB% KB)
 )
 
-if not exist "%ROOT%\croc.exe" (
-    echo   [WARN] croc.exe 未找到
-    echo   请运行 python tools/install_croc.py 安装
-    echo   或从 https://github.com/schollz/croc/releases 下载
-    echo.
+if exist "%ROOT%\croc.exe" (
+    copy /y "%ROOT%\croc.exe" "%BUILD_DIR%\croc.exe" >nul
+    echo   [OK] croc.exe → dist\TCP-Chat\
 ) else (
-    for %%f in ("%ROOT%\croc.exe") do set CROC_SIZE=%%~zf
-    set /a "CROC_SIZE_MB=CROC_SIZE / 1024 / 1024"
-    echo   [OK] croc.exe (%CROC_SIZE_MB% MB)
+    echo   [WARN] croc.exe 未找到，文件传输功能不可用
+    echo   请运行 python tools/install_croc.py 安装
 )
+
+:: 复制 config.json
+if exist "%ROOT%\config.json" (
+    copy /y "%ROOT%\config.json" "%BUILD_DIR%\config.json" >nul
+    echo   [OK] config.json → dist\TCP-Chat\
+)
+
+:: 复制 README
+if exist "%ROOT%\README.md" (
+    copy /y "%ROOT%\README.md" "%BUILD_DIR%\README.md" >nul
+)
+
+:: 复制 setup_utils.py（给安装程序用）
+copy /y "%ROOT%\setup\setup_utils.py" "%BUILD_DIR%\setup_utils.py" >nul
+
+echo.
+echo   打包目录内容:
+dir /b "%BUILD_DIR%"
+echo.
 
 :: ── Step 4: 构建 Inno Setup 安装包 ──────────────
 
 echo.
-echo [4/5] 构建安装包...
+echo [4/4] 构建安装包...
 echo.
 
 if "%ISCC%"=="" (
@@ -129,8 +137,8 @@ if "%ISCC%"=="" (
     echo.
     echo   可用手动方式:
     echo     安装 Inno Setup 6.x 后运行:
-    echo       "%ISCC%" "%ROOT%\setup\installer.iss"
-    echo   或直接分发 TCP-Chat.exe + bore.exe + croc.exe + config.json
+    echo       ISCC.exe setup\installer.iss
+    echo   或直接分发 dist\TCP-Chat\ 目录
     goto :summary
 )
 
@@ -141,7 +149,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: ── Step 5: 输出结果 ─────────────────────────────
+:: ── 输出结果 ─────────────────────────────────────
 
 :summary
 echo.
@@ -150,27 +158,18 @@ echo     构建结果
 echo ================================================
 echo.
 
-:: 列出生成的安装包
 if exist "%ROOT%\dist\*.exe" (
     echo 安装包:
     for %%f in ("%ROOT%\dist\TCP-Chat-Setup-*.exe") do (
-        for %%s in ("%%f") do set /a "PKG_SIZE_MB=%%~zs / 1024 / 1024"
-        echo   [DIST] %%f (!PKG_SIZE_MB! MB)
+        echo   [DIST] %%f
     )
 )
+echo.
+echo 绿色分发目录:
+echo   [DIR] %BUILD_DIR%
+echo   直接压缩此目录即可绿色分发
+echo.
 
-echo.
-echo 构建产物:
-echo   [EXE] %ROOT%\TCP-Chat.exe
-if exist "%ROOT%\bore.exe" echo   [BIN] %ROOT%\bore.exe
-if exist "%ROOT%\croc.exe" echo   [BIN] %ROOT%\croc.exe
-echo   [CFG] %ROOT%\config.json
-
-echo.
-echo 分发方式:
-echo   1. 完整安装包: dist\TCP-Chat-Setup-*.exe
-echo   2. 绿色免安装: 直接打包 TCP-Chat.exe + bore.exe + croc.exe + config.json
-echo.
 echo ================================================
 echo.
 

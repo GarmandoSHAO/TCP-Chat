@@ -5,39 +5,42 @@ import subprocess
 import threading
 import time
 import re
-import sys
 import os
+
+from .config import get_app_root
+
+
+def _find_local_bin(name: str) -> str | None:
+    """在应用根目录查找可执行文件"""
+    path = os.path.join(get_app_root(), name)
+    if os.path.exists(path):
+        return path
+    return None
 
 
 def find_bore():
-    """查找 bore 可执行文件"""
-    # 优先找项目目录下的 bore.exe
-    local = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bore.exe")
-    if os.path.exists(local):
+    """查找 bore 可执行文件（应用目录优先，其次 PATH）"""
+    local = _find_local_bin("bore.exe")
+    if local:
         return local
-    # 找 PATH 里的 bore
     for path in os.environ.get("PATH", "").split(os.pathsep):
-        p = os.path.join(path, "bore")
-        if os.path.exists(p):
-            return p
-        p_exe = os.path.join(path, "bore.exe")
-        if os.path.exists(p_exe):
-            return p_exe
+        for name in ("bore", "bore.exe"):
+            p = os.path.join(path, name)
+            if os.path.exists(p):
+                return p
     return None
 
 
 def find_ngrok():
-    """查找 ngrok 可执行文件"""
-    local = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ngrok.exe")
-    if os.path.exists(local):
+    """查找 ngrok 可执行文件（应用目录优先，其次 PATH）"""
+    local = _find_local_bin("ngrok.exe")
+    if local:
         return local
     for path in os.environ.get("PATH", "").split(os.pathsep):
-        p = os.path.join(path, "ngrok")
-        if os.path.exists(p):
-            return p
-        p_exe = os.path.join(path, "ngrok.exe")
-        if os.path.exists(p_exe):
-            return p_exe
+        for name in ("ngrok", "ngrok.exe"):
+            p = os.path.join(path, name)
+            if os.path.exists(p):
+                return p
     return None
 
 

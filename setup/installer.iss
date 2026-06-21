@@ -80,25 +80,20 @@ english.SelectDesktopIcon=Create Desktop shortcut(&D)
 english.SelectAutoRun=Run after installation(&R)
 
 ;============================================================
-; 文件清单
+; 文件清单（--onedir 打包，整个目录递归搬运）
 ;============================================================
 [Files]
-; 主程序
-Source: "..\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\config.json"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
-; 外部工具
-Source: "..\{#BoreExe}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\{#CrocExe}"; DestDir: "{app}"; Flags: ignoreversion
-; 安装工具
-Source: "setup_utils.py"; DestDir: "{app}"; Flags: ignoreversion
-; 文档
-Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+; 配置文件（首装时放入，升级时不覆盖）
+Source: "..\dist\TCP-Chat\config.json"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
+; 全部打包产物
+Source: "..\dist\TCP-Chat\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion; Excludes: "config.json"
 
 ;============================================================
-; 目录（安装时创建必要子目录）
+; 目录（程序运行时需要的可写目录）
 ;============================================================
 [Dirs]
 Name: "{app}\logs"; Permissions: users-modify
+Name: "{app}\chat_cache"; Permissions: users-modify
 Name: "{app}\download"
 
 ;============================================================
@@ -140,6 +135,7 @@ Filename: "{app}\setup_utils.py"; Parameters: "cleanup --dir ""{app}"""; Flags: 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\download"
+Type: filesandordirs; Name: "{app}\chat_cache"
 Type: filesandordirs; Name: "{app}\__pycache__"
 
 ;============================================================

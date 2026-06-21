@@ -8,11 +8,16 @@ import sys
 import time
 from logging.handlers import RotatingFileHandler
 
-_LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+from .config import get_app_root
+
+_LOG_DIR = os.path.join(get_app_root(), "logs")
 os.makedirs(_LOG_DIR, exist_ok=True)
 
 # 只保留最近 5 个日志文件
-_log_files = sorted([os.path.join(_LOG_DIR, f) for f in os.listdir(_LOG_DIR) if f.startswith('chat_') and f.endswith('.log')])
+_log_files = sorted(
+    os.path.join(_LOG_DIR, f) for f in os.listdir(_LOG_DIR)
+    if f.startswith('chat_') and f.endswith('.log')
+)
 for _f in _log_files[:-4]:
     try:
         os.remove(_f)
