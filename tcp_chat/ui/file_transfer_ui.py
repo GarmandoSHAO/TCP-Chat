@@ -10,10 +10,11 @@ import tkinter.filedialog as filedialog
 import logging
 import shutil
 
+from ..config import get_app_root
+
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_DOWNLOAD_DIR = os.path.join(_PROJECT_ROOT, "download")
+DEFAULT_DOWNLOAD_DIR = os.path.join(get_app_root(), "download")
 os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
 
 MSG_PREFIX_OFFER = "/file_offer|"
@@ -29,28 +30,24 @@ def format_size(size: int) -> str:
     return f"{size:.2f} PB"
 
 
-def find_croc() -> str:
-    import sys as _sys
-    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    _croc_exe = "croc.exe" if os.name == "nt" else "croc"
-    _local = os.path.join(_root, _croc_exe)
-    if os.path.exists(_local):
-        return os.path.abspath(_local)
-    _which = shutil.which(_croc_exe)
-    if _which:
-        return _which
-    raise FileNotFoundError("croc 未找到。请运行 tools/install_croc.bat 安装")
+def find_croc() -> str | None:
+    """查找 croc 可执行文件（应用目录优先，其次 PATH）"""
+    root = get_app_root()
+    croc_exe = "croc.exe" if os.name == "nt" else "croc"
+    local = os.path.join(root, croc_exe)
+    if os.path.exists(local):
+        return os.path.abspath(local)
+    which = shutil.which(croc_exe)
+    if which:
+        return which
+    return None
 
 
 class FileTransferManager:
 
     def __init__(self, app):
         self.app = app
-        self._croc_path = None
-        try:
-            self._croc_path = find_croc()
-        except FileNotFoundError:
-            pass
+        self._croc_path = find_croc()
         self._transfers: dict = {}
 
     # ── 发送 ──────────────────────────────────────────

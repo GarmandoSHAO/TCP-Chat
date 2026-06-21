@@ -13,12 +13,13 @@ import re
 import logging
 from typing import Optional
 
+from ..config import get_app_root
+
 logger = logging.getLogger(__name__)
 
 # bore 可执行文件搜索路径
 BORE_FILENAME = "bore.exe" if os.name == "nt" else "bore"
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_BORE_PATH = os.path.join(PROJECT_ROOT, BORE_FILENAME)
+DEFAULT_BORE_PATH = os.path.join(get_app_root(), BORE_FILENAME)
 
 
 def find_bore() -> Optional[str]:
