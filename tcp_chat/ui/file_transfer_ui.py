@@ -3,7 +3,6 @@
 """
 
 import os
-import re
 import time
 import subprocess
 import threading
@@ -41,16 +40,6 @@ def find_croc() -> str:
     if _which:
         return _which
     raise FileNotFoundError("croc 未找到。请运行 tools/install_croc.bat 安装")
-
-
-def _parse_croc_progress(line: str) -> int | None:
-    m = re.search(r'(\d+)%\s*\|', line)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'(\d+)%\s*$', line)
-    if m:
-        return int(m.group(1))
-    return None
 
 
 class FileTransferManager:
@@ -116,36 +105,32 @@ class FileTransferManager:
             logger.error("croc send error: %s", e, exc_info=True)
         finally:
             logger.info("发送线程结束: %s", os.path.basename(filepath))
-            self._safe_call(self._system_msg, tab, "✅ 发送完成")
+            self._safe_call(self._system_msg, tab, "✅ 上传完成")
             state["process"] = None
             self._transfers.pop(tab["id"], None)
 
     def _run_croc_send(self, tab, state, filepath, code):
         env = {**os.environ, "CROC_SECRET": code}
+        logger.info("croc send启动: code=%s file=%s", code, filepath)
+        self._safe_call(self._update_progress_msg, tab, f"📤 {state['filename']}    传输中...")
+        tab["_ft_prog_txt"] = f"📤 {state['filename']}    传输中..."
         proc = subprocess.Popen(
             [self._croc_path, "send", filepath],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
         state["process"] = proc
-        last_pct = -1
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            pct = _parse_croc_progress(line)
-            if pct is not None and pct != last_pct and (pct - last_pct >= 5 or pct >= 99):
-                last_pct = pct
-                state["progress"] = pct
-                self._safe_call(self._system_msg, tab, f"📤 {pct}%")
         try:
             proc.wait(timeout=60)
         except subprocess.TimeoutExpired:
-            logger.warning("croc send 超时，强制结束")
+            logger.warning("croc send 超时")
             proc.kill()
             proc.wait()
-        if last_pct < 100 and proc.returncode in (0, -9):
-            self._safe_call(self._system_msg, tab, "📤 100%")
+        logger.info("croc send结束: returncode=%s", proc.returncode)
+        if proc.returncode in (0, -9):
+            total = format_size(state["filesize"])
+            self._safe_call(self._update_progress_msg, tab, f"📤 {state['filename']}    {total}/{total}")
+            tab["_ft_prog_txt"] = f"📤 {state['filename']}    {total}/{total}"
 
     # ── 接收 ──────────────────────────────────────────
 
@@ -233,9 +218,21 @@ class FileTransferManager:
         logger.info("重新显示文件邀约: %s", offer.get("filename"))
         self._display_offer(tab, offer["filename"], offer["filesize"], offer["code"])
 
+
+    def redisplay_progress(self, tab):
+        """切换标签后重新显示传输进度"""
+        txt = tab.get("_ft_prog_txt")
+        if not txt:
+            return
+        tab.pop("_ft_prog_start", None)
+        tab.pop("_ft_prog_end", None)
+        self._update_progress_msg(tab, txt)
+
     def _accept_file(self, tab, code, filename, filesize):
+        logger.info("接受文件: tab=%d code=%s filename=%s", tab["id"], code, filename)
         state = self._transfers.get(tab["id"])
         if not state:
+            logger.warning("接受文件失败: state不存在 tab=%d", tab["id"])
             return
         self._clear_offer_buttons(tab, state)
         state["status"] = "transferring"
@@ -248,33 +245,26 @@ class FileTransferManager:
     def _receive_thread(self, tab, code, filename, filesize, state):
         dl = DEFAULT_DOWNLOAD_DIR
         env = {**os.environ, "CROC_SECRET": code}
+        logger.info("接收线程启动: code=%s file=%s", code, filename)
+        self._safe_call(self._update_progress_msg, tab, f"📥 下载 {filename}    传输中...")
         try:
             proc = subprocess.Popen(
                 [self._croc_path, "--yes", "--out", dl],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
                 cwd=dl,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
             state["process"] = proc
-            last_pct = -1
-            for line in proc.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                pct = _parse_croc_progress(line)
-                if pct is not None and pct != last_pct and (pct - last_pct >= 5 or pct >= 99):
-                    last_pct = pct
-                    state["progress"] = pct
-                    self._safe_call(self._system_msg, tab, f"📥 {pct}%")
             try:
                 proc.wait(timeout=60)
             except subprocess.TimeoutExpired:
-                logger.warning("croc receive 超时，强制结束")
+                logger.warning("croc receive 超时")
                 proc.kill()
                 proc.wait()
-            if last_pct < 100 and proc.returncode in (0, -9):
-                self._safe_call(self._system_msg, tab, "📥 100%")
+            logger.info("croc recv结束: returncode=%s", proc.returncode)
             if proc.returncode in (0, -9):
+                total = format_size(filesize)
+                self._safe_call(self._update_progress_msg, tab, f"📥 下载 {filename}    {total}/{total}")
                 self._safe_call(self._system_msg, tab, "✅ 接收完成")
             else:
                 self._safe_call(self._system_msg, tab, f"❌ 接收失败 ({proc.returncode})")
@@ -295,7 +285,7 @@ class FileTransferManager:
             self._send_private_msg(sender_nick, f"{MSG_PREFIX_DECLINE}{filename}")
 
     def handle_accept_response(self, sender_nick, content):
-        pass
+        logger.info("对方已接受文件: %s %s", sender_nick, content)
 
     def handle_decline_response(self, sender_nick, content):
         filename = content.split("|", 1)[1] if "|" in content else ""
@@ -309,7 +299,6 @@ class FileTransferManager:
                     except:
                         try: proc.kill()
                         except: pass
-                self._safe_call(self._system_msg, self._find_tab(tid), f"❌ {sender_nick} 拒绝")
                 self._transfers.pop(tid, None)
                 break
 
@@ -336,6 +325,32 @@ class FileTransferManager:
         if tw.get("end-2c", "end-1c") != "":
             tw.insert("end", "\n")
         tw.insert("end", text, ("system",))
+        tw.see("end")
+        tw.config(state="disabled")
+        tab.setdefault("_messages", []).append(("system", text))
+
+
+    def _update_progress_msg(self, tab, text):
+        """显示进度消息（先删旧的，再追加新的，实现原地刷新）"""
+        tw = tab.get("msg_text")
+        if not tw:
+            return
+        tw.config(state="normal")
+        # 如果有旧的进度行则先删除
+        old_start = tab.get("_ft_prog_start")
+        if old_start:
+            try:
+                old_end = tab.get("_ft_prog_end")
+                line_start = tw.index(f"{old_start} linestart")
+                tw.delete(line_start, old_end)
+            except Exception:
+                pass
+        else:
+            if tw.get("end-2c", "end-1c") != "":
+                tw.insert("end", "\n")
+        tab["_ft_prog_start"] = tw.index("end-1c")
+        tw.insert("end", text, ("system",))
+        tab["_ft_prog_end"] = tw.index("end-1c")
         tw.see("end")
         tw.config(state="disabled")
 

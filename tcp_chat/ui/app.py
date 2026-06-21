@@ -451,6 +451,7 @@ class ChatClientUI:
             # 重新显示文件邀约按钮（如有）
             try:
                 self.ft_manager.redisplay_offers(tab)
+                self.ft_manager.redisplay_progress(tab)
             except Exception:
                 pass
         else:
@@ -679,9 +680,18 @@ class ChatClientUI:
                 if content.startswith(MSG_PREFIX_OFFER):
                     # /file_offer|<address>|<filepath>|<filesize>
                     if "→" in inner:
-                        # 自己是发送方，对方的回应：不处理邀约（自己的回显）
                         target = inner.split("→")[1].strip()
-                        self._route_private_message(raw_msg, target, is_self=True)
+                        tab = self._get_or_create_private_tab(target)
+                        tab["_messages"].append(("system", "📤 已发送文件请求"))
+                        if self._active_tab == tab["id"]:
+                            tw = tab.get("msg_text")
+                            if tw:
+                                tw.config(state="normal")
+                                if tw.get("end-2c", "end-1c") != "":
+                                    tw.insert("end", "\n")
+                                tw.insert("end", "📤 已发送文件请求", ("system",))
+                                tw.see("end")
+                                tw.config(state="disabled")
                     else:
                         sender = inner.strip()
                         # 创建或获取私聊标签
@@ -1175,11 +1185,23 @@ class ChatClientUI:
             return
         tw.config(state="normal")
         tw.delete("1.0", "end")
-        for mtype, text in tab.get("_messages", []):
-            if tw.get("end-2c", "end-1c") != "":
-                tw.insert("end", "\n")
-            tag = "system" if mtype == "system" else "normal"
-            tw.insert("end", text, (tag,))
+        for item in tab.get("_messages", []):
+            try:
+                if isinstance(item, tuple) and len(item) == 2:
+                    mtype, text = item
+                elif isinstance(item, dict):
+                    mtype = item.get("type", "normal")
+                    text = item.get("text", "")
+                else:
+                    continue
+                if not text:
+                    continue
+                if tw.get("end-2c", "end-1c") != "":
+                    tw.insert("end", "\n")
+                tag = "system" if mtype == "system" else "normal"
+                tw.insert("end", text, (tag,))
+            except Exception:
+                continue
         tw.see("end")
         tw.config(state="disabled")
 
@@ -1318,12 +1340,7 @@ class ChatClientUI:
             tw.see("end")
             tw.config(state="disabled")
             entry.delete(0, "end")
-            # 记录到标签消息缓存（通过昵称查找 tab）
-            for t in self._tabs:
-                if t.get("type") == "private" and t.get("target_nick") == n:
-                    t["_messages"].append(("normal", display))
-                    break
-            # 实际发送
+            # 实际发送（消息缓存在服务端回显时由 _route_private_message 处理）
             try:
                 self.sock.sendall(f"/to {n} {text}".encode("utf-8"))
             except Exception:
