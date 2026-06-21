@@ -39,6 +39,7 @@ SolidCompression=yes
 InternalCompressLevel=max
 
 ; 卸载配置
+SetupIconFile=..\TCP-Chat.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 

@@ -21,6 +21,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name='TCP-Chat',
+    icon='TCP-Chat.ico',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
