@@ -113,6 +113,12 @@ if exist "%ROOT%\config.json" (
     echo   [OK] config.json → dist\TCP-Chat\
 )
 
+:: 复制 图标（窗口左上角使用）
+if exist "%ROOT%\TCP-Chat.png" (
+    copy /y "%ROOT%\TCP-Chat.png" "%BUILD_DIR%\TCP-Chat.png" >nul
+    echo   [OK] TCP-Chat.png → dist\TCP-Chat\
+)
+
 :: 复制 README
 if exist "%ROOT%\README.md" (
     copy /y "%ROOT%\README.md" "%BUILD_DIR%\README.md" >nul

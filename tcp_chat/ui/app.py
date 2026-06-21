@@ -113,6 +113,18 @@ class ChatClientUI:
     # ======================== 窗口基础 ========================
 
     def _set_window_icon(self):
+        """设置窗口图标（优先加载用户图标，失败则用内置图标）"""
+        try:
+            from ..config import get_app_root
+            icon_path = os.path.join(get_app_root(), "TCP-Chat.png")
+            if os.path.exists(icon_path):
+                img = tk.PhotoImage(file=icon_path)
+                self.root.iconphoto(True, img)
+                self._icon_img = img
+                return
+        except Exception:
+            pass
+        # fallback: 内置 16×16 绿色方块
         try:
             img = tk.PhotoImage(width=16, height=16)
             for x in range(16):
