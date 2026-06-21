@@ -8,7 +8,7 @@
 #define MyAppShortName "TCP-Chat"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "TCP-Chat"
-#define MyAppURL "https://github.com/your-org/tcp-chat"
+#define MyAppURL "https://github.com/GarmandoSHAO/TCP-Chat"
 #define MyAppExeName "TCP-Chat.exe"
 
 ; 外部工具
@@ -38,14 +38,14 @@ Compression=lzma2/max
 SolidCompression=yes
 InternalCompressLevel=max
 
-; 安装包图标
-; SetupIconFile=..\assets\icon.ico
-
 ; 卸载配置
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 
 ; 权限配置
+; 注: admin 权限用于写入防火墙规则和 Program Files 目录，
+; HKCU 注册表存放用户级安装路径（供升级检测），
+; 在管理员安装模式下 HKCU 指向当前用户配置单元，行为正确。
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
