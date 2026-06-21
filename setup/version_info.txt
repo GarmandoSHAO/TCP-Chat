@@ -1,0 +1,19 @@
+# TCP 聊天室 安装包版本信息
+# 此文件用于 Inno Setup VersionInfo 字段
+
+AppName=TCP 聊天室
+AppShortName=TCP-Chat
+AppVersion=1.0.0
+AppPublisher=TCP-Chat Team
+AppPublisherURL=
+AppSupportURL=
+AppUpdatesURL=
+
+# 安装包文件名
+OutputBaseFilename=TCP-Chat-Setup-1.0.0
+
+# 最低 Windows 版本 (6.1 = Windows 7 SP1)
+MinVersion=6.1.7601
+
+# 架构
+Architectures=x64compatible

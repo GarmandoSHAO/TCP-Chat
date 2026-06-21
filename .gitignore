@@ -24,6 +24,7 @@ debug/
 
 # PyInstaller build artifacts
 build/
+dist/
 *.spec
 *.zip
 *.tmp
