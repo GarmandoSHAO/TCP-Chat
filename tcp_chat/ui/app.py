@@ -116,7 +116,7 @@ class ChatClientUI:
         """设置窗口图标（优先加载用户图标，失败则用内置图标）"""
         try:
             from ..config import get_app_root
-            icon_path = os.path.join(get_app_root(), "TCP-Chat.png")
+            icon_path = os.path.join(get_app_root(), "TCP-Chat-small.png")
             if os.path.exists(icon_path):
                 img = tk.PhotoImage(file=icon_path)
                 self.root.iconphoto(True, img)
