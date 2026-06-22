@@ -4,6 +4,7 @@
 import customtkinter as ctk
 from .theme import *
 from ..config import get, get_local_ip
+from .icons import ICON_HOME, ICON_LAUNCH, ICON_BACK, TEXT_CREATE_ROOM, TEXT_BACK
 
 def build_create_room_view(container, on_create, on_back):
     """创建房间配置页：IP、端口、房间名、昵称"""
@@ -11,9 +12,9 @@ def build_create_room_view(container, on_create, on_back):
     frame.pack(fill="both", expand=True)
 
     local_ip = get_local_ip()
-    ctk.CTkLabel(frame, text="🏠", font=("Segoe UI", 36),
+    ctk.CTkLabel(frame, text=ICON_HOME, font=("Segoe UI", 36),
                  bg_color=WHITE).pack(pady=(28, 0))
-    ctk.CTkLabel(frame, text="创建聊天房间",
+    ctk.CTkLabel(frame, text=TEXT_CREATE_ROOM,
                  font=("Segoe UI", 18, "bold"),
                  text_color=CHAT_TITLE,
                  bg_color=WHITE).pack(pady=(4, 16))
@@ -44,12 +45,12 @@ def build_create_room_view(container, on_create, on_back):
         entry.pack(side="left")
         entries[label] = entry
 
-    ctk.CTkButton(frame, text="🚀  创建",
+    ctk.CTkButton(frame, text=f"{ICON_LAUNCH}  创建",
                    font=("Segoe UI", 13, "bold"),
                    width=200, height=38, corner_radius=8,
                    fg_color=CHAT_TITLE,
                    command=on_create).pack(pady=(12, 4))
-    ctk.CTkButton(frame, text="←  返回",
+    ctk.CTkButton(frame, text=f"{ICON_BACK}  {TEXT_BACK}",
                    font=("Segoe UI", 11),
                    width=200, height=30, corner_radius=8,
                    fg_color=WHITE, text_color="#888888",

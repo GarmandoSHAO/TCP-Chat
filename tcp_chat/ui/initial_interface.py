@@ -7,6 +7,8 @@ import threading
 import time
 import customtkinter as ctk
 from .theme import *
+from .icons import TEXT_APP_TITLE
+from .icon_manager import set_window_icon
 from .start_page import build_start_view
 from .create_room_page import build_create_room_view
 from .login_page import build_login_view
@@ -49,12 +51,14 @@ class InitialInterface:
         y = self.root.winfo_y() + 40
 
         win = ctk.CTkToplevel(self.root, fg_color="white")
-        win.title("TCP 聊天室")
+        win.title(TEXT_APP_TITLE)
         win.geometry(f"420x480+{x}+{y}")
         win.resizable(False, False)
         win.attributes("-topmost", True)
         win.protocol("WM_DELETE_WINDOW", self._on_close)
         self.win = win
+        # CTkToplevel 创建后立即设图标
+        set_window_icon(win)
         self._show_start()
 
     def close(self):

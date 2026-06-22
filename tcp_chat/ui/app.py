@@ -10,16 +10,31 @@ import threading
 import time
 import queue
 import re
-import os
 import sys
 
-from ..config import get, get_local_ip
+from ..config import get
 from ..client import connect_server, start_receive
 from .theme import *
+from .icons import (
+    ICON_CHAT, ICON_ONLINE, ICON_OFFLINE,
+    ICON_ERROR, ICON_FILE, ICON_INFO, ICON_MUTE, ICON_UNMUTE, ICON_LOCK,
+    ICON_EXIT_ROOM, ICON_NETWORK, ICON_CLOSE,
+    ICON_ADD, ICON_TOOLS,
+    TEXT_APP_TITLE, TEXT_SEND, TEXT_PRIVATE_CHAT,
+    TEXT_BLOCK, TEXT_UNBLOCK, TEXT_EXIT_ROOM_ACTION, TEXT_SHOW_IP,
+    TEXT_CONNECTED, TEXT_DISCONNECTED,
+    TEXT_EMPTY_ROOM_HINT, TEXT_EXITING, TEXT_SEND_FAILED,
+    TEXT_ALREADY_IN_ROOM, TEXT_CONNECTION_TIMEOUT,
+    TEXT_CONNECTION_REFUSED,
+)
+from .tags import apply_tags, scale_tags
 from .widgets import make_draggable
 from .chat_page import build_chat_view
 from .initial_interface import InitialInterface
 from . import cache_manager
+from .dialogs import show_disconnect_confirm, show_info_popup
+from .icon_manager import set_window_icon
+from .patterns import make_auto_hide_scrollbar, make_user_card
 from .file_transfer_ui import FileTransferManager, MSG_PREFIX_OFFER, MSG_PREFIX_ACCEPT, MSG_PREFIX_DECLINE
 
 ctk.set_appearance_mode(get("appearance", "light"))
@@ -48,7 +63,7 @@ class ChatClientUI:
 
     def __init__(self, auto_connect=None):
         self.root = ctk.CTk()
-        self.root.title("TCP 聊天室")
+        self.root.title(TEXT_APP_TITLE)
         self.root.withdraw()  # 初始隐藏，有房间后才显示
 
         # ---- 网络状态 ----
@@ -98,7 +113,7 @@ class ChatClientUI:
         self.user_count_label = None
         self.send_btn = None
 
-        self._set_window_icon()
+        set_window_icon(self.root)
         self.root.after(100, self._process_queue)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.bind("<Configure>", self._on_window_resize)
@@ -109,36 +124,6 @@ class ChatClientUI:
             self.root.after(200, lambda: self._connect_thread(host, port, nick))
         else:
             self.root.after(200, self._open_initial_interface)
-
-    # ======================== 窗口基础 ========================
-
-    def _set_window_icon(self):
-        """设置窗口图标（优先加载用户图标，失败则用内置图标）"""
-        try:
-            from ..config import get_app_root
-            icon_path = os.path.join(get_app_root(), "TCP-Chat-small.png")
-            if os.path.exists(icon_path):
-                img = tk.PhotoImage(file=icon_path)
-                self.root.iconphoto(True, img)
-                self._icon_img = img
-                return
-        except Exception:
-            pass
-        # fallback: 内置 16×16 绿色方块
-        try:
-            img = tk.PhotoImage(width=16, height=16)
-            for x in range(16):
-                for y in range(16):
-                    c = "#075e54"
-                    if 3 <= x <= 12 and 3 <= y <= 12:
-                        c = "#ffffff"
-                    elif 4 <= x <= 11 and 4 <= y <= 11:
-                        c = "#075e54"
-                    img.put(c, (x, y))
-            self.root.iconphoto(True, img)
-            self._icon_img = img
-        except Exception:
-            pass
 
     # ======================== 初始界面管理 ========================
 
@@ -202,7 +187,7 @@ class ChatClientUI:
                 sock.close()
             except Exception:
                 pass
-            self.msg_queue.put(("MESSAGE", "❌ 已在該房間中，不可重複加入"))
+            self.msg_queue.put(("MESSAGE", TEXT_ALREADY_IN_ROOM))
             return
 
         self.nickname = nickname
@@ -245,7 +230,7 @@ class ChatClientUI:
         self._perm_top_bar.pack_propagate(False)
 
         # "+" 菜单按钮
-        menu_btn = ctk.CTkButton(self._perm_top_bar, text="+", width=28, height=26,
+        menu_btn = ctk.CTkButton(self._perm_top_bar, text=ICON_ADD, width=28, height=26,
                                   font=("Segoe UI", 16, "bold"),
                                   corner_radius=6,
                                   fg_color=WHITE, text_color="#075e54",
@@ -286,7 +271,7 @@ class ChatClientUI:
             m = tk.Menu(self.root, tearoff=False,
                         font=("Segoe UI", 10), bg="white", fg="#333333",
                         activebackground="#e8f5e9", activeforeground="#075e54")
-            m.add_command(label="✕ 关闭私聊",
+            m.add_command(label=f"{ICON_CLOSE} 关闭私聊",
                           command=lambda idx=index: self._close_private_tab(idx))
             try:
                 m.tk_popup(event.x_root, event.y_root)
@@ -345,10 +330,10 @@ class ChatClientUI:
             lbl.pack(side="left")
             lbl.bind("<Button-1>", lambda e, idx=i: self._switch_tab(idx))
             lbl.bind("<Button-3>", lambda e, idx=i: self._on_tab_right_click(e, idx))
-            lbl.bind("<Enter>", lambda e, l=lbl, a=is_active, h=hover_bg: l.configure(
-                fg_color=h if not a else l.cget("fg_color")))
-            lbl.bind("<Leave>", lambda e, l=lbl, a=is_active, b=bg: l.configure(
-                fg_color=b if not a else l.cget("fg_color")))
+            lbl.bind("<Enter>", lambda e, lb=lbl, active=is_active, hbg=hover_bg: lb.configure(
+                fg_color=hbg if not active else lb.cget("fg_color")))
+            lbl.bind("<Leave>", lambda e, lb=lbl, active=is_active, bg_color=bg: lb.configure(
+                fg_color=bg_color if not active else lb.cget("fg_color")))
 
     def _record_message(self, msg_type, text, **kwargs):
         """记录消息到当前标签的缓存列表（恢复模式不记录）"""
@@ -488,15 +473,7 @@ class ChatClientUI:
         if self.msg_text and hasattr(self, '_scale'):
             msg_size = max(10, int(MSG_FONT_SIZE * self._scale))
             self.msg_text.configure(font=("Segoe UI", msg_size))
-            for tag, base in [
-                ("normal", msg_size),
-                ("nickname_tag", (msg_size, "bold")),
-                ("system", (max(8, int(10 * self._scale)), "italic")),
-                ("timestamp", max(7, int(9 * self._scale))),
-            ]:
-                self.msg_text.tag_configure(
-                    tag, font=("Segoe UI", *(base if isinstance(base, tuple) else (base,))),
-                )
+            scale_tags(self.msg_text, self._scale)
         if self.msg_entry and hasattr(self, '_scale'):
             self.msg_entry.configure(font=("Segoe UI", max(10, int(12 * self._scale))))
 
@@ -511,7 +488,6 @@ class ChatClientUI:
             "nickname": str, "room_name": str,
         }
         """
-        welcome_msg = info.get("welcome", "")
         login_result = info.get("login", "")
         room_id = info.get("room_id")
         room_name = info.get("room_name", "")
@@ -525,6 +501,7 @@ class ChatClientUI:
             self._build_user_interface()
 
         self.root.deiconify()
+        set_window_icon(self.root)  # deiconify 后重设，确保可见窗口图标正确
 
         # 为新房间创建标签页（含房间号信息）
         tab_id = len(self._tabs)
@@ -557,7 +534,7 @@ class ChatClientUI:
             self._joined_room_ids.add(room_id)
         self._switch_tab(tab_id)
 
-        self._add_system_message("🟢 已连接到聊天室")
+        self._add_system_message(f"{ICON_ONLINE} {TEXT_CONNECTED}")
         if login_result:
             self._display_message(login_result)
 
@@ -600,9 +577,9 @@ class ChatClientUI:
                 daemon=True,
             ).start()
         except socket.timeout:
-            self.msg_queue.put(("ERROR", "连接超时"))
+            self.msg_queue.put(("ERROR", TEXT_CONNECTION_TIMEOUT))
         except ConnectionRefusedError:
-            self.msg_queue.put(("ERROR", "连接被拒绝"))
+            self.msg_queue.put(("ERROR", TEXT_CONNECTION_REFUSED))
         except socket.gaierror:
             self.msg_queue.put(("ERROR", f'无法解析地址 "{host}"'))
         except Exception as e:
@@ -622,10 +599,10 @@ class ChatClientUI:
             self.sock.sendall(text.encode("utf-8"))
             self.msg_entry.delete(0, "end")
             if text.strip().lower() in ("/quit", "/exit"):
-                self._add_system_message("正在退出...")
+                self._add_system_message(TEXT_EXITING)
                 self._disconnect()
         except OSError:
-            self._add_system_message("❌ 发送失败")
+            self._add_system_message(f"{ICON_ERROR} {TEXT_SEND_FAILED}")
             self._disconnect()
 
     def _process_queue(self):
@@ -645,7 +622,7 @@ class ChatClientUI:
                     # 只处理属于当前连接的断开消息
                     if sock_id != id(self.sock):
                         continue
-                    self._add_system_message(f"🔴 {msg}")
+                    self._add_system_message(f"{ICON_OFFLINE} {msg}")
                     self.connected = False
                     # 标记所有共享该 socket 的标签为已断开
                     for t in self._tabs:
@@ -657,7 +634,7 @@ class ChatClientUI:
                         except Exception:
                             pass
                     if self.title_label:
-                        self.title_label.configure(text="聊天室 — 已断开")
+                        self.title_label.configure(text=f"聊天室 — {TEXT_DISCONNECTED}")
                     if self.status_bar:
                         self.status_bar.configure(fg_color=STATUS_RED)
         except queue.Empty:
@@ -1069,67 +1046,11 @@ class ChatClientUI:
             is_host = uid == self._host_id
             is_self = (uid == self._my_uid)
 
-            # 配色
-            if is_host:
-                bg = "#fff8e1"
-                hover_bg = "#ffecb3"
-            elif is_self:
-                bg = "#f5f5f5"
-                hover_bg = "#e0e0e0"
-            else:
-                bg = "#f0fdf4"
-                hover_bg = "#c8f0d0"
-
-            # row 用实色背景做卡片（CTkFrame），
-            # CTkLabel 保持默认透明（原版已验证右键可用）
-            row = ctk.CTkFrame(self.user_list_inner, fg_color=bg,
-                               corner_radius=8, border_width=0)
-            row.pack(fill="x", pady=1, padx=4)
-
-            indicator = "👑" if is_host else "  ● "
-            icolor = HOST_GOLD if is_host else ONLINE_GREEN
-            ind_lbl = ctk.CTkLabel(
-                row, text=indicator, font=("Segoe UI", fs + 2),
-                text_color=icolor, fg_color=bg,
+            make_user_card(
+                self.user_list_inner, nick,
+                is_host=is_host, is_self=is_self, font_size=fs,
+                on_right_click=self._user_cmenu,
             )
-            ind_lbl.pack(side="left", padx=(6, 2))
-
-            lbl = ctk.CTkLabel(
-                row, text=nick, font=("Segoe UI", fs),
-                anchor="w",
-                cursor="hand2" if not is_self else "",
-            )
-            lbl.pack(side="left", fill="x", expand=True)
-
-            # 右键（和原版完全一致）
-            if not is_self:
-                lbl.bind("<Button-3>", lambda e, n=nick: self._user_cmenu(e, n))
-
-            # 悬停变色（ind_lbl + row + lbl 全更新）
-            def _enter(e, r=row, i=ind_lbl, h=hover_bg):
-                r.configure(fg_color=h)
-                i.configure(fg_color=h)
-            def _leave(e, r=row, i=ind_lbl, b=bg):
-                r.configure(fg_color=b)
-                i.configure(fg_color=b)
-            for w in (row, lbl, ind_lbl):
-                w.bind("<Enter>", _enter)
-                w.bind("<Leave>", _leave)
-
-        if self.user_count_label:
-            self.user_count_label.configure(text=f"{len(users)} 人在线")
-
-        if self.user_count_label:
-            self.user_count_label.configure(text=f"{len(users)} 人在线")
-
-        if self.user_count_label:
-            self.user_count_label.configure(text=f"{len(users)} 人在线")
-
-        if self.user_count_label:
-            self.user_count_label.configure(text=f"{len(users)} 人在线")
-
-        if self.user_count_label:
-            self.user_count_label.configure(text=f"{len(users)} 人在线")
 
         if self.user_count_label:
             self.user_count_label.configure(text=f"{len(users)} 人在线")
@@ -1137,16 +1058,16 @@ class ChatClientUI:
     def _user_cmenu(self, event, nick):
         """用户右键菜单"""
         m = tk.Menu(self.root, tearoff=False)
-        m.add_command(label="私聊", command=lambda n=nick: self._start_private_chat(n))
+        m.add_command(label=TEXT_PRIVATE_CHAT, command=lambda n=nick: self._start_private_chat(n))
         m.add_separator()
         if nick in self._blocked_users:
             m.add_command(
-                label="取消屏蔽",
+                label=TEXT_UNBLOCK,
                 command=lambda n=nick: self._toggle_block(n),
             )
         else:
             m.add_command(
-                label="屏蔽",
+                label=TEXT_BLOCK,
                 command=lambda n=nick: self._toggle_block(n),
             )
         try:
@@ -1182,10 +1103,10 @@ class ChatClientUI:
         """切换屏蔽用户"""
         if nick in self._blocked_users:
             self._blocked_users.discard(nick)
-            self._add_system_message(f"🔓 已取消屏蔽 {nick}")
+            self._add_system_message(f"{ICON_UNMUTE} 已取消屏蔽 {nick}")
         else:
             self._blocked_users.add(nick)
-            self._add_system_message(f"🔒 已屏蔽 {nick}")
+            self._add_system_message(f"{ICON_LOCK} 已屏蔽 {nick}")
         self._update_user_list_display(self.online_users)
 
     # ======================== 私聊 ========================
@@ -1253,47 +1174,13 @@ class ChatClientUI:
         pc_text.grid(row=0, column=0, sticky="nsew")
 
         # 与房间相同的 tag 配置（共享同一组颜色常量）
-        for name, (fg, font) in [
-            ("system", (SYSTEM_FG, ("Segoe UI", 9, "italic"))),
-            ("private", (PRIVATE_FG, ("Segoe UI", 10))),
-            ("error", (ERROR_FG, ("Segoe UI", 10, "bold"))),
-            ("timestamp", (TIMESTAMP_FG, ("Segoe UI", 8))),
-            ("nickname_tag", (NICKNAME_FG, ("Segoe UI", MSG_FONT_SIZE, "bold"))),
-            ("normal", ("#000000", ("Segoe UI", MSG_FONT_SIZE))),
-        ]:
-            pc_text.tag_configure(name, foreground=fg, font=font)
+        apply_tags(pc_text)
 
         # 滚动条（与房间相同的 auto-hide 逻辑）
         scrollbar = ctk.CTkScrollbar(msg_frame, command=pc_text.yview,
                                       orientation="vertical", corner_radius=CR)
         scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 2))
-
-        _scroll_timer = [None]
-
-        def _auto_hide_scroll():
-            if _scroll_timer[0]:
-                msg_frame.after_cancel(_scroll_timer[0])
-            _scroll_timer[0] = msg_frame.after(1500, scrollbar.grid_remove)
-
-        def _on_scroll(first, last):
-            scrollbar.set(first, last)
-            if first == "0.0" and last == "1.0":
-                scrollbar.grid_remove()
-            else:
-                scrollbar.grid()
-
-        def _on_mw(event):
-            pc_text.yview_scroll(int(-1 * event.delta / 120), "units")
-            first, last = pc_text.yview()
-            if first != "0.0" or last != "1.0":
-                scrollbar.grid()
-                _auto_hide_scroll()
-            return "break"
-
-        pc_text.config(yscrollcommand=_on_scroll)
-        scrollbar.grid_remove()
-        pc_text.bind("<MouseWheel>", _on_mw)
-        msg_frame.bind("<MouseWheel>", _on_mw)
+        make_auto_hide_scrollbar(msg_frame, pc_text, scrollbar)
 
         # === 右侧操作面板（替代房间的用户列表） ===
         action_panel = ctk.CTkFrame(main_area, width=190, fg_color=WHITE,
@@ -1301,7 +1188,7 @@ class ChatClientUI:
         action_panel.pack(side="right", fill="y")
         action_panel.pack_propagate(False)
 
-        ctk.CTkLabel(action_panel, text="🔧 快捷操作",
+        ctk.CTkLabel(action_panel, text=f"{ICON_TOOLS} 快捷操作",
                      font=("Segoe UI", 12, "bold"),
                      text_color=CHAT_TITLE, bg_color=WHITE).pack(
                          anchor="w", padx=14, pady=(16, 2))
@@ -1311,12 +1198,12 @@ class ChatClientUI:
         btn_frame.pack(fill="x", padx=10, pady=(8, 0))
 
         action_btns = [
-            ("📁 发送文件", lambda n=nick: (
+            (f"{ICON_FILE} 发送文件", lambda n=nick: (
                 lambda t: t and self.ft_manager.send_file(t, n)
             )(self._find_private_tab(n))),
-            ("📋 用户信息", lambda: self._add_system_message(
+            (f"{ICON_INFO} 用户信息", lambda: self._add_system_message(
                 f"📋 {nick} 的信息功能待扩展")),
-            ("🔇 屏蔽用户", lambda n=nick: self._toggle_block(n)),
+            (f"{ICON_MUTE} 屏蔽用户", lambda n=nick: self._toggle_block(n)),
         ]
         for text, cmd in action_btns:
             ctk.CTkButton(btn_frame, text=text,
@@ -1360,14 +1247,14 @@ class ChatClientUI:
 
         pc_entry.bind("<Return>", lambda e: _send_pc())
 
-        send_btn = ctk.CTkButton(input_bar, text="发送",
+        send_btn = ctk.CTkButton(input_bar, text=TEXT_SEND,
                                   font=("Segoe UI", 12, "bold"),
                                   width=80, height=38,
                                   corner_radius=CR, command=_send_pc)
         send_btn.pack(side="left")
 
         # 初始系统消息
-        sys_msg = f"💬 开始与 {nick} 私聊"
+        sys_msg = f"{ICON_CHAT} 开始与 {nick} 私聊"
         pc_text.config(state="normal")
         pc_text.insert("end", sys_msg, ("system",))
         pc_text.config(state="disabled")
@@ -1463,9 +1350,9 @@ class ChatClientUI:
             bg="white", fg="#333333", activebackground="#e8f5e9",
             activeforeground="#075e54",
         )
-        self._ctx_menu.add_command(label="🚪 退出房间", command=self._confirm_disconnect)
+        self._ctx_menu.add_command(label=f"{ICON_EXIT_ROOM} {TEXT_EXIT_ROOM_ACTION}", command=self._confirm_disconnect)
         self._ctx_menu.add_separator()
-        self._ctx_menu.add_command(label="🌐 查看本机 IP", command=self._show_ip)
+        self._ctx_menu.add_command(label=f"{ICON_NETWORK} {TEXT_SHOW_IP}", command=self._show_ip)
         if self.title_label:
             self.title_label.bind("<Button-3>", self._show_context_menu)
             self.title_label.bind("<Button-2>", self._show_context_menu)
@@ -1481,50 +1368,17 @@ class ChatClientUI:
         from ..config import get_local_ip
         port = getattr(self, "_port", 8888) or 8888
         ip = f"{get_local_ip()}:{port}"
-        # 只从当前房间的隧道对象读取（各房间独立，不受全局变量覆盖）
         tunnel = getattr(self, "_tunnel", None)
         pub = tunnel.public_addr if (tunnel and getattr(tunnel, "public_addr", None)) else None
         room_id = getattr(self, "room_id", None)
-        win = ctk.CTkToplevel(self.root, fg_color="white")
-        win.title("网络信息")
-        h = 190 if room_id else 160
-        win.geometry(f"280x{h}+{self.root.winfo_x() + 60}+{self.root.winfo_y() + 80}")
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        frame = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
-        frame.pack(expand=True)
 
-        def copy(text):
-            win.clipboard_clear()
-            win.clipboard_append(text)
-            hint.configure(text="✅ 复制成功")
-            win.after(1500, lambda: hint.configure(text=""))
-
-        def make_row(label, text):
-            row = ctk.CTkFrame(frame, fg_color="transparent")
-            row.pack(fill="x", pady=4)
-            ctk.CTkLabel(
-                row, text=label, font=("Segoe UI", 12), text_color="#333333",
-            ).pack(side="left", padx=(0, 8))
-            ctk.CTkButton(
-                row, text=text, font=("Segoe UI", 12), width=0, height=28,
-                corner_radius=5, fg_color="#e0e0e0", text_color="#333333",
-                hover_color="#d0d0d0", command=lambda t=text: copy(t),
-            ).pack(side="left")
-
-        make_row("局域网 IP", ip)
+        rows: list[tuple[str, str]] = [("局域网 IP", ip)]
         if room_id:
-            make_row("房间号", room_id)
+            rows.append(("房间号", room_id))
         if pub:
-            make_row("外网地址", pub)
-        hint = ctk.CTkLabel(
-            frame, text="", font=("Segoe UI", 10), text_color="#2e7d32",
-        )
-        hint.pack(pady=(4, 2))
-        ctk.CTkButton(
-            frame, text="关闭", font=("Segoe UI", 11), width=70, height=28,
-            corner_radius=5, fg_color="#075e54", command=win.destroy,
-        ).pack()
+            rows.append(("外网地址", pub))
+
+        show_info_popup(self.root, "网络信息", rows)
 
     # ======================== 窗口缩放 ========================
 
@@ -1548,15 +1402,7 @@ class ChatClientUI:
         self._scale = scale
         msg_size = max(10, int(MSG_FONT_SIZE * scale))
         self.msg_text.configure(font=("Segoe UI", msg_size))
-        for tag, base in [
-            ("normal", msg_size),
-            ("nickname_tag", (msg_size, "bold")),
-            ("system", (max(8, int(10 * scale)), "italic")),
-            ("timestamp", max(7, int(9 * scale))),
-        ]:
-            self.msg_text.tag_configure(
-                tag, font=("Segoe UI", *(base if isinstance(base, tuple) else (base,))),
-            )
+        scale_tags(self.msg_text, scale)
         if self.msg_entry:
             self.msg_entry.configure(font=("Segoe UI", max(10, int(12 * scale))))
         self._update_user_list_display(self.online_users)
@@ -1565,36 +1411,7 @@ class ChatClientUI:
 
     def _confirm_disconnect(self):
         """显示确认弹窗，确定后断开当前连接"""
-        win = ctk.CTkToplevel(self.root, fg_color="white")
-        win.title("退出房间")
-        x = self.root.winfo_x() + 120
-        y = self.root.winfo_y() + 100
-        win.geometry(f"300x140+{x}+{y}")
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        win.grab_set()  # 模态
-
-        ctk.CTkLabel(
-            win, text="确定离开房间吗？",
-            font=("Segoe UI", 14), text_color="#333333",
-        ).pack(pady=(24, 8))
-
-        btn_frame = ctk.CTkFrame(win, fg_color="transparent")
-        btn_frame.pack(pady=(8, 0))
-
-        ctk.CTkButton(
-            btn_frame, text="确定", font=("Segoe UI", 12, "bold"),
-            width=80, height=32, corner_radius=6,
-            fg_color="#075e54", hover_color="#054d44",
-            command=lambda: (win.destroy(), self._disconnect()),
-        ).pack(side="left", padx=(0, 12))
-
-        ctk.CTkButton(
-            btn_frame, text="取消", font=("Segoe UI", 12),
-            width=80, height=32, corner_radius=6,
-            fg_color="#e0e0e0", text_color="#333333",
-            hover_color="#d0d0d0", command=win.destroy,
-        ).pack(side="left")
+        show_disconnect_confirm(self.root, self._disconnect)
 
     def _disconnect(self):
         """断开当前连接并移除标签页（同时移除关联私聊标签）"""
@@ -1675,9 +1492,7 @@ class ChatClientUI:
             if self.msg_text:
                 self.msg_text.config(state="normal")
                 self.msg_text.delete("1.0", "end")
-                self.msg_text.insert("end",
-                    "点击左上角 [+] 按钮来创建或加入聊天房间吧",
-                    ("system",))
+                self.msg_text.insert("end", TEXT_EMPTY_ROOM_HINT, ("system",))
                 self.msg_text.config(state="disabled")
             # 清空用户列表
             if self.user_list_inner:

@@ -4,6 +4,9 @@
 import tkinter as tk
 import customtkinter as ctk
 from .theme import *
+from .icons import ICON_ONLINE, TEXT_ONLINE_USERS, TEXT_SEND, TEXT_INPUT_PLACEHOLDER
+from .tags import apply_tags
+from .patterns import make_auto_hide_scrollbar
 
 def build_chat_view(container, on_send, on_disconnect):
     """聊天主界面：消息区、用户面板、输入区（顶栏由主控统一管理）"""
@@ -33,47 +36,14 @@ def build_chat_view(container, on_send, on_disconnect):
                        highlightthickness=0)
     msg_text.grid(row=0, column=0, sticky="nsew")
 
-    for name, (fg, font) in [
-        ("system", (SYSTEM_FG, ("Segoe UI", 9, "italic"))),
-        ("private", (PRIVATE_FG, ("Segoe UI", 10))),
-        ("error", (ERROR_FG, ("Segoe UI", 10, "bold"))),
-        ("timestamp", (TIMESTAMP_FG, ("Segoe UI", 8))),
-        ("nickname_tag", (NICKNAME_FG, ("Segoe UI", MSG_FONT_SIZE, "bold"))),
-        ("normal", ("#000000", ("Segoe UI", MSG_FONT_SIZE))),
-    ]:
-        msg_text.tag_configure(name, foreground=fg, font=font)
+    apply_tags(msg_text)
 
     # 滚动条
     scrollbar = ctk.CTkScrollbar(msg_frame, command=msg_text.yview,
                                   orientation="vertical", corner_radius=CR)
     scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 2))
 
-    def _on_scroll(first, last):
-        scrollbar.set(first, last)
-        if first == "0.0" and last == "1.0":
-            scrollbar.grid_remove()
-        else:
-            scrollbar.grid()
-    msg_text.config(yscrollcommand=_on_scroll)
-    scrollbar.grid_remove()
-
-    def _on_mw(event):
-        msg_text.yview_scroll(int(-1 * event.delta / 120), "units")
-        first, last = msg_text.yview()
-        if first != "0.0" or last != "1.0":
-            scrollbar.grid()
-            _auto_hide_scroll()
-        return "break"
-
-    _scroll_timer = [None]
-
-    def _auto_hide_scroll():
-        if _scroll_timer[0]:
-            msg_frame.after_cancel(_scroll_timer[0])
-        _scroll_timer[0] = msg_frame.after(1500, scrollbar.grid_remove)
-
-    msg_text.bind("<MouseWheel>", _on_mw)
-    msg_frame.bind("<MouseWheel>", _on_mw)
+    make_auto_hide_scrollbar(msg_frame, msg_text, scrollbar)
 
     # === 用户面板 ===
     user_frame = ctk.CTkFrame(main_area, width=190, fg_color=WHITE,
@@ -81,7 +51,7 @@ def build_chat_view(container, on_send, on_disconnect):
     user_frame.pack(side="right", fill="y")
     user_frame.pack_propagate(False)
 
-    ctk.CTkLabel(user_frame, text="🟢 在线用户",
+    ctk.CTkLabel(user_frame, text=f"{ICON_ONLINE} {TEXT_ONLINE_USERS}",
                  font=("Segoe UI", 12, "bold"),
                  text_color=CHAT_TITLE, bg_color=WHITE).pack(
                      anchor="w", padx=14, pady=(16, 2))
@@ -149,10 +119,10 @@ def build_chat_view(container, on_send, on_disconnect):
 
     msg_entry = ctk.CTkEntry(input_bar, font=("Segoe UI", 12),
                               height=38, corner_radius=CR,
-                              placeholder_text="输入消息...")
+                              placeholder_text=TEXT_INPUT_PLACEHOLDER)
     msg_entry.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-    send_btn = ctk.CTkButton(input_bar, text="发送",
+    send_btn = ctk.CTkButton(input_bar, text=TEXT_SEND,
                               font=("Segoe UI", 12, "bold"),
                               width=80, height=38,
                               corner_radius=CR, command=on_send)

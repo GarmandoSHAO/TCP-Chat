@@ -4,6 +4,11 @@
 import tkinter as tk
 import customtkinter as ctk
 from .theme import *
+from .icons import (
+    ICON_CHAT, ICON_SEARCH, ICON_LAUNCH, ICON_BACK,
+    TEXT_APP_TITLE, TEXT_CONNECT_TO_SERVER, TEXT_SCAN_LAN,
+    TEXT_CONNECT, TEXT_BACK,
+)
 
 def build_login_view(container, fields_config, on_connect, on_back=None):
     """登录界面：地址:端口 + 昵称 + 连接按钮 + 返回"""
@@ -18,11 +23,11 @@ def build_login_view(container, fields_config, on_connect, on_back=None):
     center = ctk.CTkFrame(body, fg_color=WHITE)
     center.pack(expand=True)
 
-    ctk.CTkLabel(center, text="💬", font=("Segoe UI", 40),
+    ctk.CTkLabel(center, text=ICON_CHAT, font=("Segoe UI", 40),
                  bg_color=WHITE).pack()
-    ctk.CTkLabel(center, text="TCP 聊天室", font=("Segoe UI", 22, "bold"),
+    ctk.CTkLabel(center, text=TEXT_APP_TITLE, font=("Segoe UI", 22, "bold"),
                  text_color="#1a1a1a", bg_color=WHITE).pack(pady=(8, 2))
-    ctk.CTkLabel(center, text="连接到聊天服务器",
+    ctk.CTkLabel(center, text=TEXT_CONNECT_TO_SERVER,
                  font=("Segoe UI", 11),
                  text_color="#888888", bg_color=WHITE).pack(pady=(0, 20))
 
@@ -53,7 +58,7 @@ def build_login_view(container, fields_config, on_connect, on_back=None):
     btn_row = ctk.CTkFrame(center, fg_color=WHITE)
     btn_row.pack(pady=(6, 12))
 
-    scan_btn = ctk.CTkButton(btn_row, text="🔍 扫描局域网",
+    scan_btn = ctk.CTkButton(btn_row, text=f"{ICON_SEARCH} {TEXT_SCAN_LAN}",
                               font=("Segoe UI", 11), width=130, height=34,
                               corner_radius=CR,
                               fg_color=("#e8e8e8", "#333333"),
@@ -61,7 +66,7 @@ def build_login_view(container, fields_config, on_connect, on_back=None):
                               hover_color=("#d0d0d0", "#444444"))
     scan_btn.pack(side="left", padx=(0, 10))
 
-    connect_btn = ctk.CTkButton(btn_row, text="🚀 连接",
+    connect_btn = ctk.CTkButton(btn_row, text=f"{ICON_LAUNCH} {TEXT_CONNECT}",
                                  font=("Segoe UI", 12, "bold"),
                                  width=120, height=34,
                                  corner_radius=CR)
@@ -73,7 +78,7 @@ def build_login_view(container, fields_config, on_connect, on_back=None):
 
     # 返回按钮（紧跟在状态文字下方）
     if on_back:
-        ctk.CTkButton(center, text="← 返回", font=("Segoe UI", 11),
+        ctk.CTkButton(center, text=f"{ICON_BACK} {TEXT_BACK}", font=("Segoe UI", 11),
                        width=200, height=30, corner_radius=8,
                        fg_color="white", text_color="#888888",
                        hover_color="#f0f0f0", command=on_back,

@@ -11,6 +11,7 @@ import logging
 import shutil
 
 from ..config import get_app_root
+from .patterns import insert_msg
 
 logger = logging.getLogger(__name__)
 
@@ -318,12 +319,7 @@ class FileTransferManager:
         tw = tab.get("msg_text")
         if not tw:
             return
-        tw.config(state="normal")
-        if tw.get("end-2c", "end-1c") != "":
-            tw.insert("end", "\n")
-        tw.insert("end", text, ("system",))
-        tw.see("end")
-        tw.config(state="disabled")
+        insert_msg(tw, text, "system")
         tab.setdefault("_messages", []).append(("system", text))
 
 

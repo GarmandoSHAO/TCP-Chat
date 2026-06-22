@@ -113,11 +113,7 @@ if exist "%ROOT%\config.json" (
     echo   [OK] config.json → dist\TCP-Chat\
 )
 
-:: 复制 图标（窗口左上角使用，由 TCP-Chat-small.ico 转换）
-if exist "%ROOT%\TCP-Chat-small.png" (
-    copy /y "%ROOT%\TCP-Chat-small.png" "%BUILD_DIR%\TCP-Chat-small.png" >nul
-    echo   [OK] TCP-Chat-small.png → dist\TCP-Chat\
-)
+:: 图标文件（TCP-Chat.png / TCP-Chat.ico）已由 PyInstaller datas 自动打包
 
 :: 复制 README
 if exist "%ROOT%\README.md" (
