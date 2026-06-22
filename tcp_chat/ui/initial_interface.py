@@ -59,6 +59,8 @@ class InitialInterface:
         self.win = win
         # CTkToplevel 创建后立即设图标
         set_window_icon(win)
+        # 额外保险：300ms 后重设一次，确保绕过 CTkToplevel 的 after_idle 覆写
+        win.after(300, lambda: set_window_icon(win))
         self._show_start()
 
     def close(self):

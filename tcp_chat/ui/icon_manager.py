@@ -6,6 +6,7 @@
 修改图标只需替换 TCP-Chat.png，重启后自动生效。
 """
 import os
+import sys
 import logging
 from typing import Optional, Union
 
@@ -30,11 +31,65 @@ except ImportError:
     _HAS_PIL = False
 """Pillow 可用性标志。不可用时降级使用已有 .ico。"""
 
+_APP_USER_MODEL_ID_SET: bool = False
+"""_set_app_user_model_id 是否已执行过（会话级单次）。"""
+
 _ICO_CHECKED: bool = False
 """ensure_ico 是否已执行过完整检测（一次成功 = 会话级缓存）。"""
 
 _ICO_PATH: Optional[str] = None
 """ensure_ico 缓存的结果路径（None 表示无可用图标）。"""
+
+
+def _set_app_user_model_id(app_id: str = "TCPChat.Room.1") -> None:
+    """Windows 7+：设置当前进程的 Application User Model ID。
+
+    这告诉 Windows 任务栏将当前进程归类到指定模型 ID，
+    从而使用 .exe 或 .lnk 的图标，而不是 python.exe 的默认图标。
+    只需在模块加载时调用一次。
+    """
+    global _APP_USER_MODEL_ID_SET
+    if _APP_USER_MODEL_ID_SET:
+        return
+    _APP_USER_MODEL_ID_SET = True
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        shell32 = ctypes.windll.shell32
+        shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        logger.debug("_set_app_user_model_id: OK app_id=%s", app_id)
+    except Exception:
+        logger.debug("_set_app_user_model_id: FAILED", exc_info=True)
+
+
+# 模块加载时执行一次
+_set_app_user_model_id()
+
+
+# =============================================================================
+# 内部辅助
+# =============================================================================
+
+def _find_icon_file(ext: str) -> Optional[str]:
+    """搜索图标文件：先应用根目录，再回退到 _internal 目录（PyInstaller --onedir）。
+
+    Args:
+        ext: 文件扩展名，如 ".ico" 或 ".png"。
+
+    Returns:
+        图标文件的绝对路径，或 None。
+    """
+    # 1. 应用根目录
+    path = os.path.join(get_app_root(), f"TCP-Chat{ext}")
+    if os.path.exists(path):
+        return path
+    # 2. _internal 子目录（PyInstaller --onedir 打包数据文件）
+    if getattr(sys, "frozen", False):
+        internal = os.path.join(os.path.dirname(sys.executable), "_internal", f"TCP-Chat{ext}")
+        if os.path.exists(internal):
+            return internal
+    return None
 
 
 # =============================================================================
@@ -44,11 +99,9 @@ _ICO_PATH: Optional[str] = None
 def set_window_icon(window: Union[ctk.CTk, ctk.CTkToplevel, tk.Tk, tk.Toplevel]) -> None:
     """对任意窗口设置 TCP-Chat 图标。
 
-    内部自动判断窗口类型，选择正确的 API：
-        - CTkToplevel → wm_iconbitmap(ico)   （绕过 customtkinter 图标覆写）
-        - 其他窗口    → iconbitmap(ico)        （标准 API）
-
-    转换失败时不抛异常，静默跳过，不影响程序运行。
+    设置顺序（关键——顺序决定最终效果）：
+      1. iconphoto(True, PhotoImage) ← 注册大尺寸 HICON，任务栏优先使用
+      2. iconbitmap(ico_path) / wm_iconbitmap(ico_path) ← ICO 多尺寸覆盖，标题栏清晰
 
     Args:
         window: 需要设置图标的窗口实例。
@@ -59,6 +112,19 @@ def set_window_icon(window: Union[ctk.CTk, ctk.CTkToplevel, tk.Tk, tk.Toplevel])
         logger.debug("set_window_icon: 无可用 .ico 文件，跳过")
         return
 
+    # ── Step 1: 加载 PNG 为 PhotoImage，调用 iconphoto ──
+    # 这步注册大尺寸 HICON，Windows 任务栏优先使用此图标
+    try:
+        png_path = _find_icon_file(".png")
+        if png_path:
+            photo = tk.PhotoImage(file=png_path)
+            window.iconphoto(True, photo)
+            logger.debug("set_window_icon(%s) iconphoto → OK", type(window).__name__)
+    except Exception:
+        logger.debug("set_window_icon(%s) iconphoto → FAILED", type(window).__name__)
+
+    # ── Step 2: 用 .ico 的 iconbitmap 覆盖 ──
+    # iconbitmap 在后面调用，其 SetClassLong + WM_SETICON 完全覆盖，ICO 多尺寸兼容性更好
     try:
         if isinstance(window, ctk.CTkToplevel):
             # 必须用 wm_iconbitmap（非 iconbitmap），否则 customtkinter
@@ -69,11 +135,13 @@ def set_window_icon(window: Union[ctk.CTk, ctk.CTkToplevel, tk.Tk, tk.Toplevel])
             window.iconbitmap(ico_path)
             logger.debug("set_window_icon(%s) iconbitmap → OK", type(window).__name__)
     except Exception:
-        logger.debug("set_window_icon(%s) → FAILED", type(window).__name__)
+        logger.debug("set_window_icon(%s) iconbitmap → FAILED", type(window).__name__)
 
 
 def get_icon_path(ext: str = ".ico") -> str:
     """获取图标文件的绝对路径。
+
+    优先应用根目录，PyInstaller --onedir 打包时回退 _internal/ 子目录。
 
     Args:
         ext: 文件扩展名，如 ".ico" 或 ".png"。
@@ -81,6 +149,10 @@ def get_icon_path(ext: str = ".ico") -> str:
     Returns:
         图标文件的绝对路径字符串。
     """
+    found = _find_icon_file(ext)
+    if found:
+        return found
+    # 回退：即使文件不存在也返回应用根目录路径（用于创建 .ico 等场景）
     return os.path.join(get_app_root(), f"TCP-Chat{ext}")
 
 
