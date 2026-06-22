@@ -12,7 +12,7 @@ echo.
 
 :: ── 检查环境 ──────────────────────────────────────
 
-echo [1/4] 检查环境...
+echo [1/5] 检查环境...
 echo.
 
 :: Python
@@ -58,14 +58,28 @@ cd /d "%~dp0.."
 set "ROOT=%CD%"
 echo   [OK] 项目目录: %ROOT%
 
+:: ── Step 1.5: 从 PNG 重建 ICO（确保图标最新） ────
+
+echo.
+echo [1.5/5] 从 TCP-Chat.png 生成 TCP-Chat.ico...
+echo.
+
+python "%ROOT%\tools\build_icon.py"
+if %errorlevel% neq 0 (
+    echo [WARN] ICO 图标重建失败，使用现有 TCP-Chat.ico
+) else (
+    echo [OK] TCP-Chat.ico 已更新
+)
+
 :: ── Step 2: PyInstaller --onedir 打包 ─────────────
 
 echo.
-echo [2/4] PyInstaller --onedir 打包...
+echo [2/5] PyInstaller --onedir 打包...
 echo.
 
 :: 清理旧产物
 if exist "%ROOT%\dist\TCP-Chat" rmdir /s /q "%ROOT%\dist\TCP-Chat"
+if exist "%ROOT%\build" rmdir /s /q "%ROOT%\build"
 
 :: 用 spec 文件打包（--onedir 模式，自动包含 datas）
 python -m PyInstaller "%ROOT%\TCP-Chat.spec" --distpath "%ROOT%\dist" --workpath "%ROOT%\build" --noconfirm
@@ -88,7 +102,7 @@ echo   [OK] dist\TCP-Chat\TCP-Chat.exe
 :: ── Step 3: 复制外部工具到打包目录 ───────────────
 
 echo.
-echo [3/4] 复制外部工具...
+echo [3/5] 复制外部工具...
 echo.
 
 if exist "%ROOT%\bore.exe" (
@@ -131,7 +145,7 @@ echo.
 :: ── Step 4: 构建 Inno Setup 安装包 ──────────────
 
 echo.
-echo [4/4] 构建安装包...
+echo [4/5] 构建安装包...
 echo.
 
 if "%ISCC%"=="" (

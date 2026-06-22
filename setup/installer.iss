@@ -102,15 +102,15 @@ Name: "{app}\download"
 ;============================================================
 [Icons]
 ; 开始菜单 → 主程序
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "{#MyAppName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "{#MyAppName}"
 ; 开始菜单 → 卸载
-Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"; WorkingDir: "{app}"
+Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
 ; 开始菜单 → 配置
 Name: "{group}\配置文件"; Filename: "{app}\config.json"; WorkingDir: "{app}"
 ; 开始菜单 → 日志目录
 Name: "{group}\日志目录"; Filename: "{app}\logs"; WorkingDir: "{app}"
 ; 桌面快捷方式
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 ;============================================================
 ; 安装任务（用户可选）
